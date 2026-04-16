@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOEX Panadería – Dashboard de Encuestas de Mercado</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --primary: #1a1a2e;
+    --accent: #e8b84b;
+    --accent2: #4fc3a1;
+    --accent3: #e8604c;
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --text2: #6b7280;
+    --border: #e5e7eb;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--primary);
+    color: #fff;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--primary);
+    letter-spacing: -1px;
+  }
+  .logo-text {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 0.5px;
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.18s;
+  }
+  .btn-primary { background: var(--accent); color: var(--primary); }
+  .btn-primary:hover { background: #f0ca6a; }
+  .btn-ghost { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.18); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn svg { width: 14px; height: 14px; }
+  #last-updated {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* FILTERS */
+  .filter-bar {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 2rem;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 64px;
+    z-index: 99;
+  }
+  .filter-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+  }
+  .filter-bar select {
+    padding: 7px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    cursor: pointer;
+    min-width: 160px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .filter-bar select:focus { border-color: var(--accent); }
+  .filter-bar input[type=text] {
+    padding: 7px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    width: 220px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .filter-bar input[type=text]:focus { border-color: var(--accent); }
+  .filter-divider { width: 1px; height: 24px; background: var(--border); }
+  .filter-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .filter-pill:hover { background: #fde68a; }
+
+  /* MAIN LAYOUT */
+  main {
+    flex: 1;
+    padding: 1.5rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi-card.accent::before { background: var(--accent); }
+  .kpi-card.green::before { background: var(--accent2); }
+  .kpi-card.red::before { background: var(--accent3); }
+  .kpi-card.blue::before { background: #60a5fa; }
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+  .kpi-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+
+  /* PROGRESS */
+  .progress-bar-outer {
+    background: var(--border);
+    border-radius: 999px;
+    height: 8px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent2);
+    transition: width 0.6s ease;
+  }
+
+  /* TABS */
+  .section-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 1.2rem;
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab-btn.active {
+    background: var(--primary);
+    color: #fff;
+  }
+  .tab-btn:hover:not(.active) { background: var(--bg); color: var(--text); }
+
+  /* PANEL CONTENT */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* 2-col layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* CARD */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .tag {
+    background: var(--primary);
+    color: var(--accent);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  /* TABLE */
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    background: var(--primary);
+    color: rgba(255,255,255,0.85);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: #fafaf8; }
+  tbody td { padding: 9px 12px; color: var(--text); vertical-align: middle; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .img-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; cursor: pointer; transition: transform 0.15s; }
+  .img-thumb:hover { transform: scale(1.08); }
+
+  /* CAROUSEL */
+  .carousel-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    margin-bottom: 16px;
+  }
+  .carousel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .carousel-nav { display: flex; gap: 6px; }
+  .carousel-nav button {
+    width: 32px; height: 32px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .carousel-nav button:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .carousel-track { display: flex; gap: 12px; overflow-x: auto; scroll-behavior: smooth; padding-bottom: 8px; }
+  .carousel-track::-webkit-scrollbar { height: 4px; }
+  .carousel-track::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .carousel-item {
+    flex: 0 0 200px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    cursor: pointer;
+    transition: box-shadow 0.15s, transform 0.15s;
+  }
+  .carousel-item:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(-2px); }
+  .carousel-item img { width: 100%; height: 140px; object-fit: cover; }
+  .carousel-item .ci-info { padding: 8px; }
+  .ci-info .ci-label { font-size: 11px; color: var(--text2); }
+  .ci-info .ci-name { font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* PENDING TABLE */
+  .pending-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .done-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.4s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid rgba(232,184,75,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    color: rgba(255,255,255,0.7);
+    font-size: 14px;
+  }
+  .loading-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  /* LIGHTBOX */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 90vw; max-height: 80vh; border-radius: 12px; }
+  .lightbox-close {
+    position: absolute;
+    top: 20px; right: 24px;
+    color: #fff;
+    font-size: 28px;
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+
+  /* SECTION CHIPS */
+  .section-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .section-chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text2);
+  }
+  .section-chip.active { background: var(--primary); color: var(--accent); border-color: var(--primary); }
+  .section-chip:hover:not(.active) { border-color: var(--text2); color: var(--text); }
+
+  /* PAGINATION */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .pag-btns { display: flex; gap: 4px; }
+  .pag-btn {
+    width: 28px; height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    cursor: pointer;
+    font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.13s;
+  }
+  .pag-btn.active, .pag-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  /* FOOTER */
+  footer {
+    background: var(--primary);
+    color: rgba(255,255,255,0.45);
+    text-align: right;
+    padding: 12px 2rem;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  footer span { color: var(--accent); font-weight: 600; }
+
+  /* CHART CONTAINERS */
+  .chart-box { position: relative; height: 240px; }
+  .chart-box-sm { position: relative; height: 180px; }
+
+  /* PENDING LIST */
+  .pending-scroll { max-height: 320px; overflow-y: auto; }
+  .pending-scroll::-webkit-scrollbar { width: 4px; }
+  .pending-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .pending-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .pending-item:last-child { border-bottom: none; }
+
+  /* ERROR */
+  .error-box {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    color: #991b1b;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-title">FOEX Dashboard</div>
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingMsg">Conectando con Google Sheets...</div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="Imagen encuesta">
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">FX</div>
+    <div>
+      <div class="logo-text">FOEX · Panadería</div>
+      <div class="logo-sub">Encuestas de Mercado</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <div id="last-updated"></div>
+    <button class="btn btn-ghost btn-sm" onclick="loadData()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Actualizar
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="exportExcel()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Exportar Excel
+    </button>
+  </div>
+</header>
+
+<!-- FILTERS -->
+<div class="filter-bar">
+  <span class="filter-label">Filtros:</span>
+  <select id="filterOficina" onchange="applyFilters()">
+    <option value="">Todas las Oficinas</option>
+  </select>
+  <select id="filterProvincia" onchange="applyFilters()">
+    <option value="">Todas las Provincias</option>
+  </select>
+  <div class="filter-divider"></div>
+  <input type="text" id="searchBox" placeholder="Buscar tienda, código..." oninput="applyFilters()">
+  <div class="filter-divider"></div>
+  <div class="filter-pill" onclick="clearFilters()">✕ Limpiar filtros</div>
+  <span style="margin-left:auto;font-size:12px;color:var(--text2);" id="filterInfo"></span>
+</div>
+
+<!-- MAIN -->
+<main>
+  <div id="errorBox" style="display:none;" class="error-box">
+    <b>No se pudo cargar la información.</b><br>
+    Verifica que el Google Sheet sea público o que el ID sea correcto.<br>
+    <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="loadData()">Reintentar</button>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card accent">
+      <div class="kpi-label">Total Tiendas</div>
+      <div class="kpi-value" id="kpiTotal">—</div>
+      <div class="kpi-sub">en base de datos</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Encuestas Realizadas</div>
+      <div class="kpi-value" id="kpiRealizadas">—</div>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="kpiProgress" style="width:0%"></div></div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Tiendas Pendientes</div>
+      <div class="kpi-value" id="kpiPendientes">—</div>
+      <div class="kpi-sub">sin visitar</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Cobertura</div>
+      <div class="kpi-value" id="kpiCobertura">—</div>
+      <div class="kpi-sub">del total de tiendas</div>
+    </div>
+    <div class="kpi-card accent">
+      <div class="kpi-label">Oficinas</div>
+      <div class="kpi-value" id="kpiOficinas">—</div>
+      <div class="kpi-sub">distintas</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Provincias</div>
+      <div class="kpi-value" id="kpiProvincias">—</div>
+      <div class="kpi-sub">distintas</div>
+    </div>
+  </div>
+
+  <!-- SECTION TABS -->
+  <div class="section-tabs">
+    <button class="tab-btn active" onclick="switchTab('resumen',this)">Resumen General</button>
+    <button class="tab-btn" onclick="switchTab('encuestas',this)">Encuestas Registradas</button>
+    <button class="tab-btn" onclick="switchTab('imagenes',this)">Carrusel de Imágenes</button>
+    <button class="tab-btn" onclick="switchTab('pendientes',this)">Tiendas Pendientes</button>
+    <button class="tab-btn" onclick="switchTab('detalle',this)">Detalle por Sección</button>
+  </div>
+
+  <!-- TAB: RESUMEN -->
+  <div class="panel active" id="panel-resumen">
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Encuestas por Provincia <span class="tag">BAR</span></div>
+        <div class="chart-box"><canvas id="chartProvincia" role="img" aria-label="Encuestas por provincia">Cargando...</canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Encuestas por Oficina <span class="tag">BAR</span></div>
+        <div class="chart-box"><canvas id="chartOficina" role="img" aria-label="Encuestas por oficina">Cargando...</canvas></div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Cobertura por Provincia <span class="tag">DONUTS</span></div>
+        <div class="chart-box"><canvas id="chartCobertura" role="img" aria-label="Cobertura general">Cargando...</canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Progreso por Sección <span class="tag">H1–H5</span></div>
+        <div id="seccionProgress"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: ENCUESTAS -->
+  <div class="panel" id="panel-encuestas">
+    <div class="table-wrapper">
+      <table id="encuestasTable">
+        <thead id="encuestasHead"></thead>
+        <tbody id="encuestasBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span id="pagInfo"></span>
+      <div class="pag-btns" id="pagBtns"></div>
+    </div>
+  </div>
+
+  <!-- TAB: IMÁGENES -->
+  <div class="panel" id="panel-imagenes">
+    <div class="section-chips" id="seccionChips">
+      <div class="section-chip active" data-sec="all" onclick="filterCarrusel('all',this)">Todas las secciones</div>
+    </div>
+    <div id="carruselSections"></div>
+  </div>
+
+  <!-- TAB: PENDIENTES -->
+  <div class="panel" id="panel-pendientes">
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Tiendas sin visitar</div>
+        <div class="pending-scroll" id="pendingList"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Cobertura por Provincia</div>
+        <div id="provinciaProgress"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: DETALLE -->
+  <div class="panel" id="panel-detalle">
+    <div id="seccionDetail"></div>
+  </div>
+</main>
+
+<footer>
+  Todos los derechos reservados &copy; <span>Tecnology-App</span> 2025
+</footer>
+
+<script>
+const SHEET_ID = '14x1sLGuw3phPaFRxvMMfU1uU3OWWQyKCdUERHaexjeU';
+const SHEET_ENCUESTAS = 'FOEX_PANADERIA';
+const SHEET_TIENDAS = 'PANADERIAS_FOEX';
+
+let allEncuestas = [];
+let allTiendas = [];
+let filteredData = [];
+let colHeaders = [];
+let imgCols = {};
+let sectionCols = { H1:[], H2:[], H3:[], H4:[], H5:[] };
+
+let currentPage = 1;
+const PAGE_SIZE = 25;
+let charts = {};
+
+function setLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+async function fetchSheet(sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  const json = JSON.parse(text.substring(47, text.length - 2));
+  return json;
+}
+
+function parseGVizTable(json) {
+  const cols = json.table.cols.map(c => c.label || c.id || '');
+  const rows = json.table.rows.map(r =>
+    r.c.map(cell => {
+      if (!cell) return '';
+      if (cell.v === null || cell.v === undefined) return '';
+      return cell.v;
+    })
+  );
+  return { cols, rows };
+}
+
+function isImageUrl(val) {
+  if (typeof val !== 'string') return false;
+  return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)/i.test(val) ||
+    /drive\.google\.com\/file\/.+\/view/i.test(val) ||
+    /lh\d\.googleusercontent\.com/i.test(val) ||
+    /images\.appsheet\.com/i.test(val);
+}
+
+function toViewUrl(url) {
+  if (!url) return '';
+  const driveMatch = url.match(/\/file\/d\/([^\/]+)/);
+  if (driveMatch) return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w300`;
+  return url;
+}
+
+async function loadData() {
+  setLoading('Conectando con Google Sheets...');
+  document.getElementById('errorBox').style.display = 'none';
+  try {
+    setLoading('Cargando encuestas...');
+    const enc = await fetchSheet(SHEET_ENCUESTAS);
+    const { cols, rows } = parseGVizTable(enc);
+    colHeaders = cols;
+    allEncuestas = rows.filter(r => r.some(c => c !== ''));
+
+    setLoading('Cargando base de tiendas...');
+    const tiendas = await fetchSheet(SHEET_TIENDAS);
+    const t = parseGVizTable(tiendas);
+    allTiendas = t.rows.filter(r => r.some(c => c !== ''));
+
+    detectColumns();
+    populateFilters();
+    applyFilters();
+
+    document.getElementById('last-updated').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-CR');
+    hideLoading();
+  } catch(e) {
+    hideLoading();
+    document.getElementById('errorBox').style.display = 'block';
+    console.error(e);
+  }
+}
+
+function detectColumns() {
+  imgCols = {};
+  sectionCols = { H1:[], H2:[], H3:[], H4:[], H5:[] };
+  const sections = ['H1','H2','H3','H4','H5'];
+  let currentSection = null;
+
+  colHeaders.forEach((h, i) => {
+    const upper = String(h).trim().toUpperCase();
+    if (sections.includes(upper)) {
+      currentSection = upper;
+      return;
+    }
+    if (currentSection) sectionCols[currentSection].push(i);
+    // detect image columns from sample data
+    for (let r = 0; r < Math.min(allEncuestas.length, 10); r++) {
+      if (isImageUrl(String(allEncuestas[r][i] || ''))) {
+        imgCols[i] = true;
+        break;
+      }
+    }
+  });
+}
+
+function populateFilters() {
+  const colC = 2; // Oficina (column C = index 2)
+  const colF = 5; // Provincia (column F = index 5)
+
+  const oficinas = [...new Set(allEncuestas.map(r => r[colC]).filter(Boolean))].sort();
+  const provincias = [...new Set(allEncuestas.map(r => r[colF]).filter(Boolean))].sort();
+
+  const selO = document.getElementById('filterOficina');
+  const selP = document.getElementById('filterProvincia');
+  selO.innerHTML = '<option value="">Todas las Oficinas</option>' + oficinas.map(v => `<option>${v}</option>`).join('');
+  selP.innerHTML = '<option value="">Todas las Provincias</option>' + provincias.map(v => `<option>${v}</option>`).join('');
+}
+
+function applyFilters() {
+  const colC = 2, colF = 5;
+  const oficina = document.getElementById('filterOficina').value;
+  const provincia = document.getElementById('filterProvincia').value;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+
+  filteredData = allEncuestas.filter(r => {
+    if (oficina && r[colC] != oficina) return false;
+    if (provincia && r[colF] != provincia) return false;
+    if (search && !r.some(c => String(c).toLowerCase().includes(search))) return false;
+    return true;
+  });
+
+  document.getElementById('filterInfo').textContent = filteredData.length + ' de ' + allEncuestas.length + ' registros';
+
+  currentPage = 1;
+  renderKPIs();
+  renderTable();
+  renderCarrusel();
+  renderPendientes();
+  renderCharts();
+  renderSeccionDetail();
+}
+
+function clearFilters() {
+  document.getElementById('filterOficina').value = '';
+  document.getElementById('filterProvincia').value = '';
+  document.getElementById('searchBox').value = '';
+  applyFilters();
+}
+
+function renderKPIs() {
+  const colF = 5;
+  const colC = 2;
+  const total = allTiendas.length;
+  const realizadas = filteredData.length;
+  const pct = total > 0 ? Math.round(realizadas / total * 100) : 0;
+  const pendientes = Math.max(0, total - allEncuestas.length);
+
+  const oficinas = new Set(filteredData.map(r => r[colC]).filter(Boolean));
+  const provincias = new Set(filteredData.map(r => r[colF]).filter(Boolean));
+
+  document.getElementById('kpiTotal').textContent = total;
+  document.getElementById('kpiRealizadas').textContent = realizadas;
+  document.getElementById('kpiPendientes').textContent = pendientes;
+  document.getElementById('kpiCobertura').textContent = pct + '%';
+  document.getElementById('kpiProgress').style.width = pct + '%';
+  document.getElementById('kpiOficinas').textContent = oficinas.size;
+  document.getElementById('kpiProvincias').textContent = provincias.size;
+}
+
+function renderTable() {
+  const head = document.getElementById('encuestasHead');
+  const body = document.getElementById('encuestasBody');
+  const sections = ['H1','H2','H3','H4','H5'];
+
+  // Build visible columns (skip H1-H5 marker cols, show first ~12 cols)
+  const visibleCols = colHeaders.map((h,i) => ({h,i})).filter(({h}) => !sections.includes(String(h).trim().toUpperCase())).slice(0,14);
+
+  head.innerHTML = '<tr>' + visibleCols.map(({h}) => `<th>${h}</th>`).join('') + '</tr>';
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const page = filteredData.slice(start, end);
+
+  body.innerHTML = page.map(row =>
+    '<tr>' + visibleCols.map(({h,i}) => {
+      const val = row[i];
+      const sval = String(val || '');
+      if (imgCols[i] || isImageUrl(sval)) {
+        return `<td><img class="img-thumb" src="${toViewUrl(sval)}" alt="img" onclick="openLightbox('${toViewUrl(sval)}')" onerror="this.style.display='none'"></td>`;
+      }
+      return `<td title="${sval}">${sval}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+
+  renderPagination();
+}
+
+function renderPagination() {
+  const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+  const info = document.getElementById('pagInfo');
+  const btns = document.getElementById('pagBtns');
+  const start = (currentPage-1)*PAGE_SIZE+1;
+  const end = Math.min(currentPage*PAGE_SIZE, filteredData.length);
+  info.textContent = `Mostrando ${start}–${end} de ${filteredData.length}`;
+
+  let html = '';
+  if (currentPage > 1) html += `<button class="pag-btn" onclick="goPage(${currentPage-1})">‹</button>`;
+  for (let p = Math.max(1,currentPage-2); p <= Math.min(totalPages,currentPage+2); p++) {
+    html += `<button class="pag-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  if (currentPage < totalPages) html += `<button class="pag-btn" onclick="goPage(${currentPage+1})">›</button>`;
+  btns.innerHTML = html;
+}
+
+function goPage(p) { currentPage = p; renderTable(); }
+
+function renderCarrusel() {
+  const sections = ['H1','H2','H3','H4','H5'];
+  const chipsEl = document.getElementById('seccionChips');
+  const container = document.getElementById('carruselSections');
+  container.innerHTML = '';
+
+  // chips
+  let chipsHtml = '<div class="section-chip active" data-sec="all" onclick="filterCarrusel(\'all\',this)">Todas las secciones</div>';
+  sections.forEach(s => {
+    if (sectionCols[s] && sectionCols[s].length > 0) {
+      chipsHtml += `<div class="section-chip" data-sec="${s}" onclick="filterCarrusel('${s}',this)">${s}</div>`;
+    }
+  });
+  chipsEl.innerHTML = chipsHtml;
+
+  // build carrusel for each section
+  sections.forEach(s => {
+    const cols = sectionCols[s] || [];
+    if (!cols.length) return;
+
+    const imgColsInSection = cols.filter(i => imgCols[i]);
+    if (!imgColsInSection.length) return;
+
+    const secEl = document.createElement('div');
+    secEl.className = 'carousel-section';
+    secEl.dataset.sec = s;
+
+    let items = '';
+    filteredData.slice(0, 60).forEach(row => {
+      imgColsInSection.forEach(i => {
+        const url = toViewUrl(String(row[i] || ''));
+        if (!url) return;
+        const tienda = row[0] || row[1] || 'Tienda';
+        const colName = colHeaders[i] || '';
+        items += `<div class="carousel-item" onclick="openLightbox('${url}')">
+          <img src="${url}" alt="${colName}" onerror="this.parentElement.style.display='none'">
+          <div class="ci-info">
+            <div class="ci-label">${colName}</div>
+            <div class="ci-name">${tienda}</div>
+          </div>
+        </div>`;
+      });
+    });
+
+    const trackId = 'track_' + s;
+    secEl.innerHTML = `
+      <div class="carousel-header">
+        <div class="card-title">Sección ${s} <span class="tag">IMÁGENES</span></div>
+        <div class="carousel-nav">
+          <button onclick="scrollCarrusel('${trackId}',-300)">‹</button>
+          <button onclick="scrollCarrusel('${trackId}',300)">›</button>
+        </div>
+      </div>
+      <div class="carousel-track" id="${trackId}">${items}</div>`;
+    container.appendChild(secEl);
+  });
+
+  if (!container.innerHTML) {
+    container.innerHTML = '<div class="card" style="text-align:center;color:var(--text2);padding:2rem;">No se encontraron imágenes en las encuestas filtradas.</div>';
+  }
+}
+
+function filterCarrusel(sec, el) {
+  document.querySelectorAll('.section-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.carousel-section').forEach(s => {
+    s.style.display = (sec === 'all' || s.dataset.sec === sec) ? '' : 'none';
+  });
+}
+
+function scrollCarrusel(id, by) {
+  const el = document.getElementById(id);
+  if (el) el.scrollLeft += by;
+}
+
+function renderPendientes() {
+  const colF = 5;
+  // Find tiendas not in encuestas (match by name or code, column 0)
+  const visited = new Set(allEncuestas.map(r => String(r[0]).toLowerCase().trim()));
+  const pending = allTiendas.filter(r => !visited.has(String(r[0]).toLowerCase().trim()));
+
+  const list = document.getElementById('pendingList');
+  if (pending.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text2);padding:1.5rem;">¡Todas las tiendas han sido visitadas!</div>';
+  } else {
+    list.innerHTML = pending.slice(0, 80).map(r =>
+      `<div class="pending-item">
+        <span>${r[0] || '—'} <span style="color:var(--text2);font-size:11px;">${r[1] || ''}</span></span>
+        <span class="pending-badge">Pendiente</span>
+      </div>`
+    ).join('') + (pending.length > 80 ? `<div style="text-align:center;padding:8px;color:var(--text2);font-size:12px;">+${pending.length-80} más</div>` : '');
+  }
+
+  // Province coverage
+  const encByProv = {};
+  allEncuestas.forEach(r => { const p = r[colF]; if(p) encByProv[p] = (encByProv[p]||0)+1; });
+  const tiendByProv = {};
+  // approximate from encuestas header
+  const provEl = document.getElementById('provinciaProgress');
+  const provs = [...new Set(allEncuestas.map(r => r[colF]).filter(Boolean))].sort();
+  provEl.innerHTML = provs.map(p => {
+    const done = encByProv[p] || 0;
+    const total = done; // we don't have per-province totals from dimension table
+    const pct = 100;
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span>${p}</span><span style="font-weight:500;">${done} enc.</span>
+      </div>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" style="width:${pct}%;background:#60a5fa"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderCharts() {
+  const colF = 5, colC = 2;
+
+  // Encuestas por Provincia
+  const byProv = {};
+  filteredData.forEach(r => { const p = r[colF]; if(p) byProv[p] = (byProv[p]||0)+1; });
+  const provLabels = Object.keys(byProv).slice(0,12);
+  const provVals = provLabels.map(k => byProv[k]);
+
+  destroyChart('chartProvincia');
+  charts['chartProvincia'] = new Chart(document.getElementById('chartProvincia'), {
+    type: 'bar',
+    data: {
+      labels: provLabels,
+      datasets: [{ label: 'Encuestas', data: provVals, backgroundColor: '#4fc3a1', borderRadius: 6 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:11}}}, y:{ticks:{stepSize:1}}} }
+  });
+
+  // Encuestas por Oficina
+  const byOfi = {};
+  filteredData.forEach(r => { const o = r[colC]; if(o) byOfi[o] = (byOfi[o]||0)+1; });
+  const ofiLabels = Object.keys(byOfi).slice(0,12);
+  const ofiVals = ofiLabels.map(k => byOfi[k]);
+
+  destroyChart('chartOficina');
+  charts['chartOficina'] = new Chart(document.getElementById('chartOficina'), {
+    type: 'bar',
+    data: {
+      labels: ofiLabels,
+      datasets: [{ label: 'Encuestas', data: ofiVals, backgroundColor: '#e8b84b', borderRadius: 6 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:11}}}, y:{ticks:{stepSize:1}}} }
+  });
+
+  // Cobertura donut
+  const total = allTiendas.length || allEncuestas.length;
+  const realizadas = filteredData.length;
+  const pendientes = Math.max(0, total - allEncuestas.length);
+
+  destroyChart('chartCobertura');
+  charts['chartCobertura'] = new Chart(document.getElementById('chartCobertura'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Realizadas','Pendientes'],
+      datasets: [{
+        data: [realizadas, pendientes],
+        backgroundColor: ['#4fc3a1','#e8604c'],
+        borderWidth: 0
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{position:'bottom', labels:{font:{size:12}}}} }
+  });
+
+  // Progreso por sección
+  const secEl = document.getElementById('seccionProgress');
+  const sections = ['H1','H2','H3','H4','H5'];
+  const colors = ['#e8b84b','#4fc3a1','#60a5fa','#a78bfa','#f87171'];
+  secEl.innerHTML = sections.map((s,idx) => {
+    const cols = sectionCols[s] || [];
+    const withData = filteredData.filter(r => cols.some(i => r[i])).length;
+    const pct = filteredData.length > 0 ? Math.round(withData/filteredData.length*100) : 0;
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span style="font-weight:500;">${s}</span><span>${pct}% (${withData} registros)</span>
+      </div>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" style="width:${pct}%;background:${colors[idx]}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function renderSeccionDetail() {
+  const sections = ['H1','H2','H3','H4','H5'];
+  const container = document.getElementById('seccionDetail');
+  container.innerHTML = '';
+
+  sections.forEach(s => {
+    const cols = sectionCols[s] || [];
+    if (!cols.length) return;
+
+    const sDiv = document.createElement('div');
+    sDiv.className = 'card';
+    sDiv.style.marginBottom = '16px';
+
+    const nonImgCols = cols.filter(i => !imgCols[i]);
+    let statsHtml = '';
+    nonImgCols.slice(0,8).forEach(i => {
+      const vals = filteredData.map(r => r[i]).filter(v => v && v !== '');
+      if (!vals.length) return;
+      const unique = [...new Set(vals)];
+      const freq = {};
+      vals.forEach(v => freq[v] = (freq[v]||0)+1);
+      const top = Object.entries(freq).sort((a,b) => b[1]-a[1]).slice(0,5);
+      statsHtml += `<div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;">${colHeaders[i]}</div>
+        ${top.map(([v,c]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;">
+          <div style="width:${Math.round(c/vals.length*120)}px;height:12px;background:var(--accent2);border-radius:3px;"></div>
+          <span>${v}</span><span style="color:var(--text2)">(${c})</span>
+        </div>`).join('')}
+      </div>`;
+    });
+
+    sDiv.innerHTML = `<div class="card-title">Sección ${s} <span class="tag">${cols.length} columnas</span></div>${statsHtml || '<div style="color:var(--text2);font-size:13px;">Solo contiene columnas de imágenes.</div>'}`;
+    container.appendChild(sDiv);
+  });
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+function openLightbox(url) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+document.getElementById('lightbox').addEventListener('click', function(e){ if(e.target===this) closeLightbox(); });
+
+function exportExcel() {
+  if (!filteredData.length) return alert('No hay datos para exportar.');
+  const sections = ['H1','H2','H3','H4','H5'];
+  const visibleCols = colHeaders.map((h,i) => ({h,i})).filter(({h}) => !sections.includes(String(h).trim().toUpperCase()));
+
+  const ws_data = [visibleCols.map(({h}) => h)].concat(
+    filteredData.map(row => visibleCols.map(({i}) => {
+      const v = row[i];
+      return (isImageUrl(String(v||'')) ? '[imagen]' : v);
+    }))
+  );
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'FOEX_PANADERIA');
+  XLSX.writeFile(wb, `FOEX_Panaderia_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+loadData();
+</script>
+</body>
+</html>
