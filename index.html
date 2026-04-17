@@ -1014,20 +1014,18 @@ function renderKPIs() {
 
 function renderTablaClasificacion() {
   try {
-    // ── Detectar índices por letra de columna ──────────────────────
-    function col(letter) {
-      const idx = colHeaders.findIndex((h, i) => idxToLetter(i) === letter);
-      return idx !== -1 ? idx : -1;
-    }
+    // Buscar por nombre exacto del encabezado (más confiable que por letra)
+    const colBJ = colHeaders.findIndex(h => /clasificaci[oó]n/i.test(String(h).trim()));
+    const colP  = colHeaders.findIndex(h => /equipo.?fr[ií]o/i.test(String(h).trim()));
+    const colU  = colHeaders.findIndex(h => /hay.?equipo.?de.?la.?competencia/i.test(String(h).trim()));
+    const colX  = colHeaders.findIndex(h => /de.?qu[eé].?proveedor/i.test(String(h).trim()));
 
-    const colBJ = colHeaders.findIndex((h, i) =>
-      idxToLetter(i) === 'BJ' ||
-      String(h).trim().toUpperCase() === 'CLASIFICACION' ||
-      String(h).trim().toUpperCase() === 'CLASIFICACION'
-    );
-    const colP = col('P') !== -1 ? col('P') : 15;
-    const colU = col('U') !== -1 ? col('U') : 20;
-    const colX = col('X') !== -1 ? col('X') : 23;
+    // Log para debug
+    console.log('Columnas detectadas → BJ:', colBJ, 'P:', colP, 'U:', colU, 'X:', colX);
+
+    if (colBJ === -1 || colP === -1 || colU === -1) {
+      console.warn('Encabezados disponibles:', colHeaders.join(' | '));
+    }
 
     // ── Agrupar por clasificación ──────────────────────────────────
     const grupos = {};
