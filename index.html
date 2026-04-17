@@ -839,8 +839,13 @@ function hideLoading() {
   document.getElementById('loadingOverlay').classList.add('hidden');
 }
 
-async function fetchSheet(sheetName) {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+async function fetchSheet(sheetName, gid) {
+  let url;
+  if (gid) {
+    url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
+  } else {
+    url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  }
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const text = await res.text();
@@ -886,7 +891,7 @@ async function loadData() {
     allEncuestas = rows.filter(r => r.some(c => c !== ''));
 
     setLoading('Cargando base de tiendas...');
-    const tiendas = await fetchSheet(SHEET_TIENDAS);
+    const tiendas = await fetchSheet(SHEET_TIENDAS, '378761780');
     const t = parseGVizTable(tiendas);
     allTiendas = t.rows.filter(r => r.some(c => c !== ''));
 
