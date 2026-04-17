@@ -327,7 +327,10 @@
     border-collapse: collapse;
     font-size: 13px;
   }
-  thead th {
+  tfoot tr { border-top: 2px solid var(--border); }
+  tfoot td { padding: 9px 12px; font-size: 13px; background: #f9fafb; }
+  small { font-size: 10px; }
+  thead th small { display:block; font-size:10px; font-weight:400; opacity:0.7; text-transform:none; letter-spacing:0; }
     background: var(--primary);
     color: rgba(255,255,255,0.85);
     font-size: 11px;
@@ -612,9 +615,9 @@
   <!-- KPI CARDS -->
   <div class="kpi-grid" id="kpiGrid">
     <div class="kpi-card accent">
-      <div class="kpi-label">Total Tiendas</div>
-      <div class="kpi-value" id="kpiTotal">—</div>
-      <div class="kpi-sub">en base de datos</div>
+      <div class="kpi-label">Universo Total</div>
+      <div class="kpi-value" id="kpiTotal">1,511</div>
+      <div class="kpi-sub">tiendas en universo</div>
     </div>
     <div class="kpi-card green">
       <div class="kpi-label">Encuestas Realizadas</div>
@@ -654,6 +657,95 @@
 
   <!-- TAB: RESUMEN -->
   <div class="panel active" id="panel-resumen">
+
+    <!-- TABLA 1: UNIVERSO DE COBERTURA -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Cobertura de Universo <span class="tag">RESUMEN</span></div>
+      <div class="table-wrapper" style="margin-bottom:0;">
+        <table id="tablaUniverso">
+          <thead>
+            <tr>
+              <th>Indicador</th>
+              <th style="text-align:center;">Cantidad</th>
+              <th style="text-align:center;">% del Universo</th>
+              <th style="text-align:center;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Universo de Tiendas</strong></td>
+              <td style="text-align:center;font-weight:700;font-size:15px;">1,511</td>
+              <td style="text-align:center;">100%</td>
+              <td style="text-align:center;"><span class="done-badge">Base total</span></td>
+            </tr>
+            <tr id="rowRealizadas">
+              <td><strong>Encuestas Realizadas</strong></td>
+              <td style="text-align:center;font-weight:700;font-size:15px;color:#059669;" id="univRealizadas">—</td>
+              <td style="text-align:center;" id="univRealizadasPct">—</td>
+              <td style="text-align:center;"><span class="done-badge">Completado</span></td>
+            </tr>
+            <tr id="rowPendientes">
+              <td><strong>Tiendas Pendientes</strong></td>
+              <td style="text-align:center;font-weight:700;font-size:15px;color:#dc2626;" id="univPendientes">—</td>
+              <td style="text-align:center;" id="univPendientesPct">—</td>
+              <td style="text-align:center;"><span class="pending-badge">Por visitar</span></td>
+            </tr>
+            <tr>
+              <td><strong>Panaderías Cerradas</strong></td>
+              <td style="text-align:center;font-weight:700;font-size:15px;color:#d97706;">5</td>
+              <td style="text-align:center;">0.3%</td>
+              <td style="text-align:center;"><span class="kpi-badge badge-amber">Cerradas</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TABLA 2: CLASIFICACIÓN POR COLUMNA BJ -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Clasificación por Categoría <span class="tag">BJ · P · U</span></div>
+      <div class="table-wrapper" style="margin-bottom:0;">
+        <table id="tablaClasificacion">
+          <thead>
+            <tr>
+              <th>Clasificación</th>
+              <th style="text-align:center;">Equipos DP<br><small>(Suma col. P)</small></th>
+              <th style="text-align:center;">Competencia<br><small>(SI en col. U)</small></th>
+              <th style="text-align:center;" id="colXProveedorHeader">Proveedor<br><small>(col. X)</small></th>
+              <th style="text-align:center;">Encuestas</th>
+              <th style="text-align:center;">% del Total</th>
+            </tr>
+          </thead>
+          <tbody id="tablaClasificacionBody">
+            <tr><td colspan="6" style="text-align:center;color:var(--text2);padding:1.5rem;">Cargando datos...</td></tr>
+          </tbody>
+          <tfoot id="tablaClasificacionFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- TABLA 3: PROVEEDORES COLUMNA X -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Proveedores Preferidos <span class="tag">COL. X</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px;" id="proveedorCards"></div>
+      <div class="table-wrapper" style="margin-bottom:0;">
+        <table id="tablaProveedores">
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th style="text-align:center;">Cantidad</th>
+              <th style="text-align:center;">% del Total</th>
+              <th style="text-align:center;">Distribución</th>
+            </tr>
+          </thead>
+          <tbody id="tablaProveedoresBody">
+            <tr><td colspan="4" style="text-align:center;color:var(--text2);padding:1.5rem;">Cargando datos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GRÁFICAS -->
     <div class="two-col">
       <div class="card">
         <div class="card-title">Encuestas por Provincia <span class="tag">BAR</span></div>
@@ -666,7 +758,7 @@
     </div>
     <div class="two-col">
       <div class="card">
-        <div class="card-title">Cobertura por Provincia <span class="tag">DONUTS</span></div>
+        <div class="card-title">Cobertura General <span class="tag">DONUT</span></div>
         <div class="chart-box"><canvas id="chartCobertura" role="img" aria-label="Cobertura general">Cargando...</canvas></div>
       </div>
       <div class="card">
@@ -877,24 +969,202 @@ function clearFilters() {
   applyFilters();
 }
 
+const UNIVERSO_TOTAL = 1511;
+const CERRADAS = 5;
+
 function renderKPIs() {
   const colF = 5;
   const colC = 2;
-  const total = allTiendas.length;
   const realizadas = filteredData.length;
-  const pct = total > 0 ? Math.round(realizadas / total * 100) : 0;
-  const pendientes = Math.max(0, total - allEncuestas.length);
+  const pendientes = Math.max(0, UNIVERSO_TOTAL - allEncuestas.length);
+  const pct = Math.round(realizadas / UNIVERSO_TOTAL * 100);
 
   const oficinas = new Set(filteredData.map(r => r[colC]).filter(Boolean));
   const provincias = new Set(filteredData.map(r => r[colF]).filter(Boolean));
 
-  document.getElementById('kpiTotal').textContent = total;
-  document.getElementById('kpiRealizadas').textContent = realizadas;
-  document.getElementById('kpiPendientes').textContent = pendientes;
+  // KPI cards
+  document.getElementById('kpiTotal').textContent = UNIVERSO_TOTAL.toLocaleString();
+  document.getElementById('kpiRealizadas').textContent = realizadas.toLocaleString();
+  document.getElementById('kpiPendientes').textContent = pendientes.toLocaleString();
   document.getElementById('kpiCobertura').textContent = pct + '%';
   document.getElementById('kpiProgress').style.width = pct + '%';
   document.getElementById('kpiOficinas').textContent = oficinas.size;
   document.getElementById('kpiProvincias').textContent = provincias.size;
+
+  // Tabla universo
+  document.getElementById('univRealizadas').textContent = realizadas.toLocaleString();
+  document.getElementById('univRealizadasPct').textContent = Math.round(realizadas / UNIVERSO_TOTAL * 100) + '%';
+  document.getElementById('univPendientes').textContent = pendientes.toLocaleString();
+  document.getElementById('univPendientesPct').textContent = Math.round(pendientes / UNIVERSO_TOTAL * 100) + '%';
+
+  // Tabla clasificación
+  renderTablaClasificacion();
+}
+
+function renderTablaClasificacion() {
+  // Detectar columnas por letra
+  const colBJ = colHeaders.findIndex((h, i) => {
+    const letter = idxToLetter(i);
+    return letter === 'BJ' || String(h).trim().toUpperCase() === 'CLASIFICACION' || String(h).trim().toUpperCase() === 'CLASIFICACIÓN';
+  });
+  const colP  = colHeaders.findIndex((h, i) => idxToLetter(i) === 'P')  !== -1 ? colHeaders.findIndex((h, i) => idxToLetter(i) === 'P')  : 15;
+  const colU  = colHeaders.findIndex((h, i) => idxToLetter(i) === 'U')  !== -1 ? colHeaders.findIndex((h, i) => idxToLetter(i) === 'U')  : 20;
+  const colX  = colHeaders.findIndex((h, i) => idxToLetter(i) === 'X')  !== -1 ? colHeaders.findIndex((h, i) => idxToLetter(i) === 'X')  : 23;
+
+  // ── TABLA CLASIFICACIÓN (BJ) ──────────────────────────────────────
+  const grupos = {};
+  filteredData.forEach(row => {
+    const clasi = String(row[colBJ] || 'Sin clasificar').trim() || 'Sin clasificar';
+    if (!grupos[clasi]) grupos[clasi] = { count: 0, sumaP: 0, siU: 0 };
+    grupos[clasi].count++;
+    const valP = parseFloat(String(row[colP] || '0').replace(',', '.'));
+    if (!isNaN(valP)) grupos[clasi].sumaP += valP;
+    if (/^s[ií]$/i.test(String(row[colU] || '').trim())) grupos[clasi].siU++;
+  });
+
+  const total = filteredData.length;
+  const entries = Object.entries(grupos).sort((a, b) => b[1].count - a[1].count);
+  const colors = ['#4fc3a1','#e8b84b','#60a5fa','#a78bfa','#f87171','#fb923c','#34d399','#818cf8'];
+  const tbody = document.getElementById('tablaClasificacionBody');
+  const tfoot = document.getElementById('tablaClasificacionFoot');
+
+  // Conteos de proveedores por clasificación para mostrar en celda
+  const provByClasi = {};
+  filteredData.forEach(row => {
+    const clasi = String(row[colBJ] || 'Sin clasificar').trim() || 'Sin clasificar';
+    const prov = normalizarProveedor(String(row[colX] || '').trim());
+    if (!prov) return;
+    if (!provByClasi[clasi]) provByClasi[clasi] = {};
+    provByClasi[clasi][prov] = (provByClasi[clasi][prov] || 0) + 1;
+  });
+
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:1.5rem;">No hay datos de clasificación disponibles aún.</td></tr>';
+    tfoot.innerHTML = '';
+  } else {
+    let totalSumaP = 0, totalSiU = 0, totalProvStr = '';
+    tbody.innerHTML = entries.map(([clasi, d], idx) => {
+      totalSumaP += d.sumaP;
+      totalSiU  += d.siU;
+      const pct = total > 0 ? Math.round(d.count / total * 100) : 0;
+      const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[idx % colors.length]};margin-right:6px;"></span>`;
+
+      // Mini resumen proveedores para esta clasificación
+      const provs = provByClasi[clasi] || {};
+      const provResumen = Object.entries(provs).sort((a,b)=>b[1]-a[1]).slice(0,3)
+        .map(([p, c]) => `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:#f3f4f6;margin:1px;">${p} (${c})</span>`).join('');
+
+      return `<tr>
+        <td>${dot}<strong>${clasi}</strong></td>
+        <td style="text-align:center;font-weight:600;">${Math.round(d.sumaP).toLocaleString()}</td>
+        <td style="text-align:center;font-weight:600;color:#059669;">${d.siU.toLocaleString()}</td>
+        <td style="text-align:left;font-size:11px;">${provResumen || '<span style="color:var(--text2)">—</span>'}</td>
+        <td style="text-align:center;">${d.count.toLocaleString()}</td>
+        <td style="text-align:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:${colors[idx % colors.length]};border-radius:4px;"></div>
+            </div>
+            <span style="font-size:12px;min-width:32px;">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    tfoot.innerHTML = `<tr style="background:#f9fafb;font-weight:700;">
+      <td>TOTAL</td>
+      <td style="text-align:center;">${Math.round(totalSumaP).toLocaleString()}</td>
+      <td style="text-align:center;color:#059669;">${totalSiU.toLocaleString()}</td>
+      <td></td>
+      <td style="text-align:center;">${total.toLocaleString()}</td>
+      <td style="text-align:center;">100%</td>
+    </tr>`;
+  }
+
+  // ── TABLA PROVEEDORES (columna X) ─────────────────────────────────
+  renderTablaProveedores(colX, total);
+}
+
+const PROV_COLORS = {
+  'Coca Cola': '#e8604c',
+  'FIFCO':     '#4fc3a1',
+  'Big Cola':  '#e8b84b',
+};
+const PROV_DEFAULTS = ['Coca Cola','FIFCO','Big Cola'];
+
+function normalizarProveedor(val) {
+  if (!val) return '';
+  const v = val.toLowerCase();
+  if (v.includes('coca') || v.includes('coke'))    return 'Coca Cola';
+  if (v.includes('fifco') || v.includes('florida')) return 'FIFCO';
+  if (v.includes('big') || v.includes('ajegroup'))  return 'Big Cola';
+  // Cualquier otro: capitalizar
+  return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+}
+
+function renderTablaProveedores(colX, total) {
+  const conteos = {};
+  filteredData.forEach(row => {
+    const prov = normalizarProveedor(String(row[colX] || '').trim());
+    if (!prov) return;
+    conteos[prov] = (conteos[prov] || 0) + 1;
+  });
+
+  const entries = Object.entries(conteos).sort((a, b) => b[1] - a[1]);
+  const grandTotal = entries.reduce((s, [, c]) => s + c, 0);
+  const colors = { ...PROV_COLORS };
+  const palette = ['#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6'];
+  let pIdx = 0;
+  entries.forEach(([p]) => { if (!colors[p]) colors[p] = palette[pIdx++ % palette.length]; });
+
+  // Cards grandes arriba
+  const cardsEl = document.getElementById('proveedorCards');
+  cardsEl.innerHTML = entries.map(([prov, cnt]) => {
+    const pct = grandTotal > 0 ? Math.round(cnt / grandTotal * 100) : 0;
+    const bg = colors[prov] || '#888';
+    return `<div style="background:${bg}15;border:1.5px solid ${bg}40;border-radius:12px;padding:1rem;text-align:center;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:${bg};margin-bottom:4px;">${prov}</div>
+      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:${bg};">${cnt.toLocaleString()}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px;">${pct}% del total</div>
+      <div style="margin-top:8px;background:${bg}25;border-radius:4px;height:6px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${bg};border-radius:4px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Tabla detalle
+  const tbody = document.getElementById('tablaProveedoresBody');
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:1.5rem;">No hay datos de proveedor disponibles aún.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = entries.map(([prov, cnt]) => {
+    const pct = grandTotal > 0 ? Math.round(cnt / grandTotal * 100) : 0;
+    const bg  = colors[prov] || '#888';
+    const dot = `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${bg};margin-right:8px;vertical-align:middle;"></span>`;
+    return `<tr>
+      <td>${dot}<strong>${prov}</strong></td>
+      <td style="text-align:center;font-weight:700;font-size:15px;">${cnt.toLocaleString()}</td>
+      <td style="text-align:center;">${pct}%</td>
+      <td style="text-align:left;padding-right:16px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;background:#e5e7eb;border-radius:4px;height:10px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${bg};border-radius:4px;"></div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function idxToLetter(n) {
+  let result = '';
+  let idx = n;
+  while (idx >= 0) {
+    result = String.fromCharCode(65 + idx % 26) + result;
+    idx = Math.floor(idx / 26) - 1;
+  }
+  return result;
 }
 
 function renderTable() {
@@ -1093,9 +1363,8 @@ function renderCharts() {
   });
 
   // Cobertura donut
-  const total = allTiendas.length || allEncuestas.length;
   const realizadas = filteredData.length;
-  const pendientes = Math.max(0, total - allEncuestas.length);
+  const pendientes = Math.max(0, UNIVERSO_TOTAL - allEncuestas.length);
 
   destroyChart('chartCobertura');
   charts['chartCobertura'] = new Chart(document.getElementById('chartCobertura'), {
