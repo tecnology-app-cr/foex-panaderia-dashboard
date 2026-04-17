@@ -616,7 +616,7 @@
   <div class="kpi-grid" id="kpiGrid">
     <div class="kpi-card accent">
       <div class="kpi-label">Universo Total</div>
-      <div class="kpi-value" id="kpiTotal">1,511</div>
+      <div class="kpi-value" id="kpiTotal">—</div>
       <div class="kpi-sub">tiendas en universo</div>
     </div>
     <div class="kpi-card green">
@@ -674,7 +674,7 @@
           <tbody>
             <tr>
               <td><strong>Universo de Tiendas</strong></td>
-              <td style="text-align:center;font-weight:700;font-size:15px;">1,511</td>
+              <td style="text-align:center;font-weight:700;font-size:15px;" id="univTotal">—</td>
               <td style="text-align:center;">100%</td>
               <td style="text-align:center;"><span class="done-badge">Base total</span></td>
             </tr>
@@ -970,12 +970,16 @@ function clearFilters() {
   applyFilters();
 }
 
-const UNIVERSO_TOTAL = 1511;
+let UNIVERSO_TOTAL = 1511; // Se actualiza con allTiendas.length al cargar
 const CERRADAS = 5;
 
 function renderKPIs() {
   const colF = 5;
   const colC = 2;
+
+  // Actualizar universo dinámicamente desde la hoja PANADERIAS_FOEX
+  if (allTiendas.length > 0) UNIVERSO_TOTAL = allTiendas.length;
+
   const realizadas = filteredData.length;
   const pendientes = Math.max(0, UNIVERSO_TOTAL - allEncuestas.length);
   const pct = Math.round(realizadas / UNIVERSO_TOTAL * 100);
@@ -993,6 +997,7 @@ function renderKPIs() {
   document.getElementById('kpiProvincias').textContent = provincias.size;
 
   // Tabla universo
+  document.getElementById('univTotal').textContent = UNIVERSO_TOTAL.toLocaleString();
   document.getElementById('univRealizadas').textContent = realizadas.toLocaleString();
   document.getElementById('univRealizadasPct').textContent = Math.round(realizadas / UNIVERSO_TOTAL * 100) + '%';
   document.getElementById('univPendientes').textContent = pendientes.toLocaleString();
