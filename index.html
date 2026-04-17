@@ -734,12 +734,13 @@
             <tr>
               <th>Proveedor</th>
               <th style="text-align:center;">Cantidad</th>
-              <th style="text-align:center;">% del Total</th>
+              <th style="text-align:center;">% de proveedores</th>
+              <th style="text-align:center;color:#60a5fa;">% vs Equipos DP</th>
               <th style="text-align:center;">Distribución</th>
             </tr>
           </thead>
           <tbody id="tablaProveedoresBody">
-            <tr><td colspan="4" style="text-align:center;color:var(--text2);padding:1.5rem;">Cargando datos...</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:var(--text2);padding:1.5rem;">Cargando datos...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1108,7 +1109,7 @@ function renderTablaClasificacion() {
   }
 
   // ── TABLA PROVEEDORES (columna X) ─────────────────────────────────
-  renderTablaProveedores(colX, total);
+  renderTablaProveedores(colX, total, totalSumaP);
 }
 
 const PROV_COLORS = {
@@ -1128,7 +1129,7 @@ function normalizarProveedor(val) {
   return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
 }
 
-function renderTablaProveedores(colX, total) {
+function renderTablaProveedores(colX, total, totalEquiposDP) {
   const conteos = {};
   filteredData.forEach(row => {
     const prov = normalizarProveedor(String(row[colX] || '').trim());
@@ -1143,17 +1144,43 @@ function renderTablaProveedores(colX, total) {
   let pIdx = 0;
   entries.forEach(([p]) => { if (!colors[p]) colors[p] = palette[pIdx++ % palette.length]; });
 
-  // Cards grandes arriba
+  // El líder es el primer entry (mayor conteo)
+  const [liderNombre, liderCnt] = entries[0] || ['—', 0];
+
+  // Cards enriquecidas
   const cardsEl = document.getElementById('proveedorCards');
-  cardsEl.innerHTML = entries.map(([prov, cnt]) => {
-    const pct = grandTotal > 0 ? Math.round(cnt / grandTotal * 100) : 0;
+  cardsEl.innerHTML = entries.map(([prov, cnt], i) => {
+    const pctDeProv   = grandTotal > 0 ? (cnt / grandTotal * 100).toFixed(1) : '0.0';
+    const pctVsDP     = totalEquiposDP > 0 ? (cnt / totalEquiposDP * 100).toFixed(1) : '0.0';
     const bg = colors[prov] || '#888';
-    return `<div style="background:${bg}15;border:1.5px solid ${bg}40;border-radius:12px;padding:1rem;text-align:center;">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:${bg};margin-bottom:4px;">${prov}</div>
-      <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:${bg};">${cnt.toLocaleString()}</div>
-      <div style="font-size:12px;color:var(--text2);margin-top:2px;">${pct}% del total</div>
-      <div style="margin-top:8px;background:${bg}25;border-radius:4px;height:6px;overflow:hidden;">
-        <div style="width:${pct}%;height:100%;background:${bg};border-radius:4px;"></div>
+    const esLider = i === 0;
+
+    // Barra dual: azul = equipos DP, color proveedor = este proveedor
+    // La barra base es el mayor entre grandTotal y totalEquiposDP
+    const base = Math.max(grandTotal, totalEquiposDP) || 1;
+    const wDP   = Math.min(100, (totalEquiposDP / base * 100)).toFixed(1);
+    const wProv = Math.min(100, (cnt / base * 100)).toFixed(1);
+
+    return `<div style="background:${bg}12;border:1.5px solid ${bg}${esLider ? 'aa' : '35'};border-radius:14px;padding:1.1rem 1rem;position:relative;${esLider ? `box-shadow:0 0 0 2px ${bg}55;` : ''}">
+      ${esLider ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:${bg};color:#fff;font-size:9px;font-weight:700;padding:2px 10px;border-radius:20px;letter-spacing:.5px;white-space:nowrap;">LÍDER</div>` : ''}
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${bg};margin-bottom:6px;">${prov}</div>
+      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:${bg};line-height:1;">${cnt.toLocaleString()}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${pctDeProv}% de proveedores</div>
+
+      <div style="margin-top:10px;border-top:1px solid ${bg}25;padding-top:8px;">
+        <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;">vs Equipos DP</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+          <span style="color:${bg};font-weight:600;">${prov}</span>
+          <span style="color:#60a5fa;font-weight:600;">Equipos DP</span>
+        </div>
+        <div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;position:relative;margin-bottom:4px;">
+          <div style="position:absolute;left:0;top:0;height:100%;width:${wProv}%;background:${bg};border-radius:6px;opacity:.85;"></div>
+          <div style="position:absolute;left:0;top:0;height:100%;width:${wDP}%;background:#60a5fa22;border-radius:6px;border:1.5px solid #60a5fa55;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;">
+          <span style="font-weight:700;color:${bg};">${cnt.toLocaleString()} <span style="font-weight:400;color:var(--text2);">(${pctVsDP}% de DP)</span></span>
+          <span style="font-weight:700;color:#60a5fa;">${Math.round(totalEquiposDP).toLocaleString()}</span>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1165,18 +1192,18 @@ function renderTablaProveedores(colX, total) {
     return;
   }
   tbody.innerHTML = entries.map(([prov, cnt]) => {
-    const pct = grandTotal > 0 ? Math.round(cnt / grandTotal * 100) : 0;
-    const bg  = colors[prov] || '#888';
+    const pct    = grandTotal > 0 ? (cnt / grandTotal * 100).toFixed(1) : '0.0';
+    const pctDP  = totalEquiposDP > 0 ? (cnt / totalEquiposDP * 100).toFixed(1) : '0.0';
+    const bg = colors[prov] || '#888';
     const dot = `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${bg};margin-right:8px;vertical-align:middle;"></span>`;
     return `<tr>
       <td>${dot}<strong>${prov}</strong></td>
       <td style="text-align:center;font-weight:700;font-size:15px;">${cnt.toLocaleString()}</td>
       <td style="text-align:center;">${pct}%</td>
+      <td style="text-align:center;color:#60a5fa;font-weight:600;">${pctDP}% de DP</td>
       <td style="text-align:left;padding-right:16px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="flex:1;background:#e5e7eb;border-radius:4px;height:10px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:${bg};border-radius:4px;"></div>
-          </div>
+        <div style="background:#e5e7eb;border-radius:4px;height:10px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${bg};border-radius:4px;"></div>
         </div>
       </td>
     </tr>`;
