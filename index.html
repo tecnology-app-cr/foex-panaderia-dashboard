@@ -1053,9 +1053,6 @@ function renderTablaClasificacion() {
       // % de cada fila sobre su propio gran total columna
       const pctDP   = totalSumaP > 0 ? (d.sumaP / totalSumaP * 100).toFixed(1) : '0.0';
       const pctComp = totalSiU   > 0 ? (d.siU   / totalSiU   * 100).toFixed(1) : '0.0';
-      // % del gran total combinado DP+Competencia
-      const pctDPGran   = granTotal > 0 ? (d.sumaP / granTotal * 100).toFixed(1) : '0.0';
-      const pctCompGran = granTotal > 0 ? (d.siU   / granTotal * 100).toFixed(1) : '0.0';
 
       const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[idx % colors.length]};margin-right:6px;vertical-align:middle;"></span>`;
 
@@ -1068,11 +1065,11 @@ function renderTablaClasificacion() {
         <td style="text-align:center;">${dot}<strong>${clasi}</strong></td>
         <td style="text-align:center;">
           <div style="font-weight:700;font-size:14px;">${Math.round(d.sumaP).toLocaleString()}</div>
-          <div style="font-size:10px;color:var(--text2);">${pctDP}% col &nbsp;|&nbsp; ${pctDPGran}% total</div>
+          <div style="font-size:10px;color:var(--text2);">${pctDP}% del total</div>
         </td>
         <td style="text-align:center;">
           <div style="font-weight:700;font-size:14px;color:#059669;">${d.siU.toLocaleString()}</div>
-          <div style="font-size:10px;color:var(--text2);">${pctComp}% col &nbsp;|&nbsp; ${pctCompGran}% total</div>
+          <div style="font-size:10px;color:var(--text2);">${pctComp}% del total</div>
         </td>
         <td style="text-align:center;font-size:11px;">${provResumen || '<span style="color:var(--text2)">—</span>'}</td>
         <td style="text-align:center;">${d.count.toLocaleString()}</td>
@@ -1087,19 +1084,16 @@ function renderTablaClasificacion() {
       </tr>`;
     }).join('');
 
-    // Gran total: sumaDP + sumaComp = granTotal, y % = 100%
-    const pctDPTotal   = granTotal > 0 ? (totalSumaP / granTotal * 100).toFixed(1) : '0.0';
-    const pctCompTotal = granTotal > 0 ? (totalSiU   / granTotal * 100).toFixed(1) : '0.0';
-
+    // Gran total fila pie
     tfoot.innerHTML = `<tr style="background:#f9fafb;font-weight:700;border-top:2px solid #d1d5db;">
       <td style="text-align:center;">TOTAL</td>
       <td style="text-align:center;">
         <div style="font-size:14px;">${Math.round(totalSumaP).toLocaleString()}</div>
-        <div style="font-size:10px;color:var(--text2);font-weight:400;">100% col &nbsp;|&nbsp; ${pctDPTotal}% gran total</div>
+        <div style="font-size:10px;color:var(--text2);font-weight:400;">100%</div>
       </td>
       <td style="text-align:center;color:#059669;">
         <div style="font-size:14px;">${totalSiU.toLocaleString()}</div>
-        <div style="font-size:10px;color:var(--text2);font-weight:400;">100% col &nbsp;|&nbsp; ${pctCompTotal}% gran total</div>
+        <div style="font-size:10px;color:var(--text2);font-weight:400;">100%</div>
       </td>
       <td></td>
       <td style="text-align:center;">${total.toLocaleString()}</td>
