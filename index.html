@@ -1013,64 +1013,72 @@ function renderKPIs() {
 }
 
 function renderTablaClasificacion() {
-  // Detectar columnas por letra
-  const colBJ = colHeaders.findIndex((h, i) => {
-    const letter = idxToLetter(i);
-    return letter === 'BJ' || String(h).trim().toUpperCase() === 'CLASIFICACION' || String(h).trim().toUpperCase() === 'CLASIFICACIÓN';
-  });
-  const colP  = colHeaders.findIndex((h, i) => idxToLetter(i) === 'P')  !== -1 ? colHeaders.findIndex((h, i) => idxToLetter(i) === 'P')  : 15;
-  const colU  = colHeaders.findIndex((h, i) => idxToLetter(i) === 'U')  !== -1 ? colHeaders.findIndex((h, i) => idxToLetter(i) === 'U')  : 20;
-  const colX  = colHeaders.findIndex((h, i) => idxToLetter(i) === 'X')  !== -1 ? colHeaders.findIndex((h, i) => idxToLetter(i) === 'X')  : 23;
+  try {
+    // ── Detectar índices por letra de columna ──────────────────────
+    function col(letter) {
+      const idx = colHeaders.findIndex((h, i) => idxToLetter(i) === letter);
+      return idx !== -1 ? idx : -1;
+    }
 
-  // ── TABLA CLASIFICACIÓN (BJ) ──────────────────────────────────────
-  const grupos = {};
-  filteredData.forEach(row => {
-    const clasi = String(row[colBJ] || 'Sin clasificar').trim() || 'Sin clasificar';
-    if (!grupos[clasi]) grupos[clasi] = { count: 0, sumaP: 0, siU: 0 };
-    grupos[clasi].count++;
-    const valP = parseFloat(String(row[colP] || '0').replace(',', '.'));
-    if (!isNaN(valP)) grupos[clasi].sumaP += valP;
-    if (/^s[ií]$/i.test(String(row[colU] || '').trim())) grupos[clasi].siU++;
-  });
+    const colBJ = colHeaders.findIndex((h, i) =>
+      idxToLetter(i) === 'BJ' ||
+      String(h).trim().toUpperCase() === 'CLASIFICACION' ||
+      String(h).trim().toUpperCase() === 'CLASIFICACION'
+    );
+    const colP = col('P') !== -1 ? col('P') : 15;
+    const colU = col('U') !== -1 ? col('U') : 20;
+    const colX = col('X') !== -1 ? col('X') : 23;
 
-  const total = filteredData.length;
-  // Orden alfabético
-  const entries = Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
-  const colors = ['#4fc3a1','#e8b84b','#60a5fa','#a78bfa','#f87171','#fb923c','#34d399','#818cf8'];
-  const tbody = document.getElementById('tablaClasificacionBody');
-  const tfoot = document.getElementById('tablaClasificacionFoot');
+    // ── Agrupar por clasificación ──────────────────────────────────
+    const grupos = {};
+    const provByClasi = {};
 
-  // Conteos de proveedores por clasificación para mostrar en celda
-  const provByClasi = {};
-  filteredData.forEach(row => {
-    const clasi = String(row[colBJ] || 'Sin clasificar').trim() || 'Sin clasificar';
-    const prov = normalizarProveedor(String(row[colX] || '').trim());
-    if (!prov) return;
-    if (!provByClasi[clasi]) provByClasi[clasi] = {};
-    provByClasi[clasi][prov] = (provByClasi[clasi][prov] || 0) + 1;
-  });
+    filteredData.forEach(row => {
+      const clasi = (String(row[colBJ] || '').trim()) || 'Sin clasificar';
 
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:1.5rem;">No hay datos de clasificación disponibles aún.</td></tr>';
-    tfoot.innerHTML = '';
-  } else {
-    // Pre-calcular totales para calcular % sobre gran total DP+Competencia
+      if (!grupos[clasi]) grupos[clasi] = { count: 0, sumaP: 0, siU: 0 };
+      grupos[clasi].count++;
+
+      const valP = parseFloat(String(row[colP] || '0').replace(',', '.'));
+      if (!isNaN(valP)) grupos[clasi].sumaP += valP;
+
+      if (/^s[ií]$/i.test(String(row[colU] || '').trim())) grupos[clasi].siU++;
+
+      const prov = normalizarProveedor(String(row[colX] || '').trim());
+      if (prov) {
+        if (!provByClasi[clasi]) provByClasi[clasi] = {};
+        provByClasi[clasi][prov] = (provByClasi[clasi][prov] || 0) + 1;
+      }
+    });
+
+    const total = filteredData.length;
+    const entries = Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0], 'es'));
+    const colors = ['#4fc3a1','#e8b84b','#60a5fa','#a78bfa','#f87171','#fb923c','#34d399','#818cf8'];
+
+    const tbody = document.getElementById('tablaClasificacionBody');
+    const tfoot = document.getElementById('tablaClasificacionFoot');
+
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:1.5rem;">Sin datos de clasificación aún.</td></tr>';
+      tfoot.innerHTML = '';
+      renderTablaProveedores(colX, total, 0);
+      return;
+    }
+
+    // Pre-calcular totales
     let totalSumaP = 0, totalSiU = 0;
     entries.forEach(([, d]) => { totalSumaP += d.sumaP; totalSiU += d.siU; });
     const granTotal = totalSumaP + totalSiU;
 
     tbody.innerHTML = entries.map(([clasi, d], idx) => {
-      const pctEncuestas = total > 0 ? Math.round(d.count / total * 100) : 0;
-      // % de cada fila sobre su propio gran total columna
+      const pctEnc  = total > 0 ? Math.round(d.count / total * 100) : 0;
       const pctDP   = totalSumaP > 0 ? (d.sumaP / totalSumaP * 100).toFixed(1) : '0.0';
       const pctComp = totalSiU   > 0 ? (d.siU   / totalSiU   * 100).toFixed(1) : '0.0';
-
       const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${colors[idx % colors.length]};margin-right:6px;vertical-align:middle;"></span>`;
 
-      // Mini resumen proveedores para esta clasificación
       const provs = provByClasi[clasi] || {};
       const provResumen = Object.entries(provs).sort((a,b)=>b[1]-a[1]).slice(0,3)
-        .map(([p, c]) => `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:#f3f4f6;margin:1px;">${p} (${c})</span>`).join('');
+        .map(([p,c]) => `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:#f3f4f6;margin:1px;">${p} (${c})</span>`).join('');
 
       return `<tr>
         <td style="text-align:center;">${dot}<strong>${clasi}</strong></td>
@@ -1087,9 +1095,9 @@ function renderTablaClasificacion() {
         <td style="text-align:center;">
           <div style="display:flex;align-items:center;gap:6px;">
             <div style="flex:1;background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;">
-              <div style="width:${pctEncuestas}%;height:100%;background:${colors[idx % colors.length]};border-radius:4px;"></div>
+              <div style="width:${pctEnc}%;height:100%;background:${colors[idx % colors.length]};border-radius:4px;"></div>
             </div>
-            <span style="font-size:11px;min-width:30px;">${pctEncuestas}%</span>
+            <span style="font-size:11px;min-width:30px;">${pctEnc}%</span>
           </div>
         </td>
       </tr>`;
@@ -1098,7 +1106,6 @@ function renderTablaClasificacion() {
     const pctDPTotal   = granTotal > 0 ? (totalSumaP / granTotal * 100).toFixed(1) : '0.0';
     const pctCompTotal = granTotal > 0 ? (totalSiU   / granTotal * 100).toFixed(1) : '0.0';
 
-    // Gran total fila pie
     tfoot.innerHTML = `<tr style="background:#f9fafb;font-weight:700;border-top:2px solid #d1d5db;">
       <td style="text-align:center;">TOTAL</td>
       <td style="text-align:center;">
@@ -1112,112 +1119,18 @@ function renderTablaClasificacion() {
       <td></td>
       <td style="text-align:center;">${total.toLocaleString()}</td>
       <td style="text-align:center;">
-        <div style="font-size:12px;">Gran total equip.</div>
-        <div style="font-size:14px;">${granTotal.toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--text2);">Gran total equip.</div>
+        <div style="font-size:14px;">${Math.round(granTotal).toLocaleString()}</div>
       </td>
     </tr>`;
+
+    renderTablaProveedores(colX, total, totalSumaP);
+
+  } catch(err) {
+    console.error('Error en renderTablaClasificacion:', err);
+    const tbody = document.getElementById('tablaClasificacionBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc2626;padding:1rem;">Error al procesar datos. Revisa la consola.</td></tr>';
   }
-
-  // ── TABLA PROVEEDORES (columna X) ─────────────────────────────────
-  renderTablaProveedores(colX, total, totalSumaP);
-}
-
-const PROV_COLORS = {
-  'Coca Cola': '#e8604c',
-  'FIFCO':     '#4fc3a1',
-  'Big Cola':  '#e8b84b',
-};
-const PROV_DEFAULTS = ['Coca Cola','FIFCO','Big Cola'];
-
-function normalizarProveedor(val) {
-  if (!val) return '';
-  const v = val.toLowerCase();
-  if (v.includes('coca') || v.includes('coke'))    return 'Coca Cola';
-  if (v.includes('fifco') || v.includes('florida')) return 'FIFCO';
-  if (v.includes('big') || v.includes('ajegroup'))  return 'Big Cola';
-  // Cualquier otro: capitalizar
-  return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
-}
-
-function renderTablaProveedores(colX, total, totalEquiposDP) {
-  const conteos = {};
-  filteredData.forEach(row => {
-    const prov = normalizarProveedor(String(row[colX] || '').trim());
-    if (!prov) return;
-    conteos[prov] = (conteos[prov] || 0) + 1;
-  });
-
-  const entries = Object.entries(conteos).sort((a, b) => b[1] - a[1]);
-  const grandTotal = entries.reduce((s, [, c]) => s + c, 0);
-  const colors = { ...PROV_COLORS };
-  const palette = ['#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6'];
-  let pIdx = 0;
-  entries.forEach(([p]) => { if (!colors[p]) colors[p] = palette[pIdx++ % palette.length]; });
-
-  // El líder es el primer entry (mayor conteo)
-  const [liderNombre, liderCnt] = entries[0] || ['—', 0];
-
-  // Cards enriquecidas
-  const cardsEl = document.getElementById('proveedorCards');
-  cardsEl.innerHTML = entries.map(([prov, cnt], i) => {
-    const pctDeProv   = grandTotal > 0 ? (cnt / grandTotal * 100).toFixed(1) : '0.0';
-    const pctVsDP     = totalEquiposDP > 0 ? (cnt / totalEquiposDP * 100).toFixed(1) : '0.0';
-    const bg = colors[prov] || '#888';
-    const esLider = i === 0;
-
-    // Barra dual: azul = equipos DP, color proveedor = este proveedor
-    // La barra base es el mayor entre grandTotal y totalEquiposDP
-    const base = Math.max(grandTotal, totalEquiposDP) || 1;
-    const wDP   = Math.min(100, (totalEquiposDP / base * 100)).toFixed(1);
-    const wProv = Math.min(100, (cnt / base * 100)).toFixed(1);
-
-    return `<div style="background:${bg}12;border:1.5px solid ${bg}${esLider ? 'aa' : '35'};border-radius:14px;padding:1.1rem 1rem;position:relative;${esLider ? `box-shadow:0 0 0 2px ${bg}55;` : ''}">
-      ${esLider ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:${bg};color:#fff;font-size:9px;font-weight:700;padding:2px 10px;border-radius:20px;letter-spacing:.5px;white-space:nowrap;">LÍDER</div>` : ''}
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${bg};margin-bottom:6px;">${prov}</div>
-      <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:${bg};line-height:1;">${cnt.toLocaleString()}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${pctDeProv}% de proveedores</div>
-
-      <div style="margin-top:10px;border-top:1px solid ${bg}25;padding-top:8px;">
-        <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;">vs Equipos DP</div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
-          <span style="color:${bg};font-weight:600;">${prov}</span>
-          <span style="color:#60a5fa;font-weight:600;">Equipos DP</span>
-        </div>
-        <div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;position:relative;margin-bottom:4px;">
-          <div style="position:absolute;left:0;top:0;height:100%;width:${wProv}%;background:${bg};border-radius:6px;opacity:.85;"></div>
-          <div style="position:absolute;left:0;top:0;height:100%;width:${wDP}%;background:#60a5fa22;border-radius:6px;border:1.5px solid #60a5fa55;"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;">
-          <span style="font-weight:700;color:${bg};">${cnt.toLocaleString()} <span style="font-weight:400;color:var(--text2);">(${pctVsDP}% de DP)</span></span>
-          <span style="font-weight:700;color:#60a5fa;">${Math.round(totalEquiposDP).toLocaleString()}</span>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Tabla detalle
-  const tbody = document.getElementById('tablaProveedoresBody');
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:1.5rem;">No hay datos de proveedor disponibles aún.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = entries.map(([prov, cnt]) => {
-    const pct    = grandTotal > 0 ? (cnt / grandTotal * 100).toFixed(1) : '0.0';
-    const pctDP  = totalEquiposDP > 0 ? (cnt / totalEquiposDP * 100).toFixed(1) : '0.0';
-    const bg = colors[prov] || '#888';
-    const dot = `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${bg};margin-right:8px;vertical-align:middle;"></span>`;
-    return `<tr>
-      <td>${dot}<strong>${prov}</strong></td>
-      <td style="text-align:center;font-weight:700;font-size:15px;">${cnt.toLocaleString()}</td>
-      <td style="text-align:center;">${pct}%</td>
-      <td style="text-align:center;color:#60a5fa;font-weight:600;">${pctDP}% de DP</td>
-      <td style="text-align:left;padding-right:16px;">
-        <div style="background:#e5e7eb;border-radius:4px;height:10px;overflow:hidden;">
-          <div style="width:${pct}%;height:100%;background:${bg};border-radius:4px;"></div>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
 }
 
 function idxToLetter(n) {
