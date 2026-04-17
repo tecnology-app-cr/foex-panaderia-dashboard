@@ -1084,16 +1084,19 @@ function renderTablaClasificacion() {
       </tr>`;
     }).join('');
 
+    const pctDPTotal   = granTotal > 0 ? (totalSumaP / granTotal * 100).toFixed(1) : '0.0';
+    const pctCompTotal = granTotal > 0 ? (totalSiU   / granTotal * 100).toFixed(1) : '0.0';
+
     // Gran total fila pie
     tfoot.innerHTML = `<tr style="background:#f9fafb;font-weight:700;border-top:2px solid #d1d5db;">
       <td style="text-align:center;">TOTAL</td>
       <td style="text-align:center;">
         <div style="font-size:14px;">${Math.round(totalSumaP).toLocaleString()}</div>
-        <div style="font-size:10px;color:var(--text2);font-weight:400;">100%</div>
+        <div style="font-size:10px;color:var(--text2);font-weight:400;">100% col &nbsp;|&nbsp; ${pctDPTotal}% gran total</div>
       </td>
       <td style="text-align:center;color:#059669;">
         <div style="font-size:14px;">${totalSiU.toLocaleString()}</div>
-        <div style="font-size:10px;color:var(--text2);font-weight:400;">100%</div>
+        <div style="font-size:10px;color:var(--text2);font-weight:400;">100% col &nbsp;|&nbsp; ${pctCompTotal}% gran total</div>
       </td>
       <td></td>
       <td style="text-align:center;">${total.toLocaleString()}</td>
