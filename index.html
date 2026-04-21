@@ -1359,38 +1359,54 @@ function renderComunicacionExterna() {
   const noImg = document.getElementById('comExtNoImg');
   const countEl = document.getElementById('comExtImgCount');
 
-  const images = filteredData
-    .map(r => {
-      const raw = String(r[COL_M] || '').trim();
-      if (!raw) return null;
-      const id = extractDriveId(raw);
-      const url = toViewUrl(raw);
-      // fallback URLs to try if primary fails
-      const fallbacks = id ? [
+  // Tomar TODOS los valores no vacíos de columna M sin filtrar por isImageUrl
+  const rawColM = filteredData
+    .map(r => ({
+      raw: String(r[COL_M] || '').trim(),
+      label: String(r[1] || r[0] || '').trim()
+    }))
+    .filter(item => item.raw.length > 0);
+
+  // Debug: mostrar primeras 3 URLs en consola para diagnóstico
+  console.log('[COL M] Primeras 3 valores:', rawColM.slice(0, 3).map(x => x.raw));
+
+  const images = rawColM.map(({ raw, label }) => {
+    const id = extractDriveId(raw);
+    let url, fallbacks;
+    if (id) {
+      // Drive: probar múltiples formatos en orden
+      url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+      fallbacks = [
         `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
         `https://drive.google.com/uc?export=view&id=${id}`,
-      ] : [];
-      const label = String(r[1] || r[0] || '').trim();
-      return { url, raw, id, fallbacks, label, isImg: isImageUrl(raw) };
-    })
-    .filter(item => item && item.isImg);
+        `https://docs.google.com/uc?id=${id}`,
+      ];
+    } else {
+      // AppSheet u otra URL — usar tal cual
+      url = raw;
+      fallbacks = [];
+    }
+    return { url, fallbacks, label, raw };
+  });
 
   if (!images.length) {
     track.innerHTML = '';
     noImg.style.display = '';
+    noImg.innerHTML = `No se encontraron valores en la columna M (índice ${COL_M}).<br>
+      <small style="color:var(--text2);">Header detectado: <b>${colHeaders[COL_M] || '(vacío)'}</b> &nbsp;|&nbsp; Total columnas: ${colHeaders.length}</small>`;
     countEl.textContent = '';
   } else {
     noImg.style.display = 'none';
     countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-    track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
-      const fbAttr = fallbacks.length ? `data-fallbacks='${JSON.stringify(fallbacks)}'` : '';
-      return `<div class="carousel-item" onclick="openLightbox('${url}')">
-        <img src="${url}" alt="${label}" loading="lazy" ${fbAttr}
+    track.innerHTML = images.map(({ url, fallbacks, label, raw }, idx) => {
+      const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
+      return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
+        <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
           onerror="(function(img){
-            var fbs = JSON.parse(img.getAttribute('data-fallbacks')||'[]');
-            var next = fbs.shift();
-            if(next){ img.setAttribute('data-fallbacks',JSON.stringify(fbs)); img.src=next; }
-            else { img.parentElement.style.display='none'; }
+            var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');
+            var next=fbs.shift();
+            if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}
+            else{img.parentElement.style.display='none';}
           })(this)">
         <div class="ci-info">
           <div class="ci-label">Foto ${idx + 1}</div>
