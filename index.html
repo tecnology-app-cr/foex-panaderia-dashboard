@@ -806,6 +806,7 @@
 const SHEET_ID = '14x1sLGuw3phPaFRxvMMfU1uU3OWWQyKCdUERHaexjeU';
 const SHEET_ENCUESTAS = 'FOEX_PANADERIA';
 const SHEET_TIENDAS = 'PANADERIAS_FOEX';
+const APPSHEET_APP_ID = 'd47cc064-5607-4741-a189-71066ee19fb0';
 
 let allEncuestas = [];
 let allTiendas = [];
@@ -882,6 +883,20 @@ function toViewUrl(url) {
   const id = extractDriveId(url);
   if (id) return `https://lh3.googleusercontent.com/d/${id}=w400`;
   return url;
+}
+
+function appSheetImgUrl(path) {
+  // path ejemplo: "FOEX_PANADERIA_Images/c3677a37.FOTO_ROTULO.154555.jpg"
+  const parts = path.split('/');
+  const folderPrefix = parts[0] || '';
+  // El tableName es el prefijo antes de "_Images"
+  const tableName = folderPrefix.replace(/_Images$/i, '') || SHEET_ENCUESTAS;
+  return `https://www.appsheet.com/template/gettablefileurl?tableName=${encodeURIComponent(tableName)}&fileName=${encodeURIComponent(path)}&appName=${APPSHEET_APP_ID}`;
+}
+
+function isAppSheetPath(val) {
+  // Detecta rutas relativas de AppSheet: no empiezan con http y tienen extensión de imagen
+  return typeof val === 'string' && !val.startsWith('http') && /\.(jpg|jpeg|png|gif|webp)$/i.test(val);
 }
 
 async function loadData() {
@@ -1359,7 +1374,6 @@ function renderComunicacionExterna() {
   const noImg = document.getElementById('comExtNoImg');
   const countEl = document.getElementById('comExtImgCount');
 
-  // Tomar TODOS los valores no vacíos de columna M sin filtrar por isImageUrl
   const rawColM = filteredData
     .map(r => ({
       raw: String(r[COL_M] || '').trim(),
@@ -1367,24 +1381,24 @@ function renderComunicacionExterna() {
     }))
     .filter(item => item.raw.length > 0);
 
-  // Debug: mostrar primeras 3 URLs en consola para diagnóstico
-  console.log('[COL M] Primeras 3 valores:', rawColM.slice(0, 3).map(x => x.raw));
-
   const images = rawColM.map(({ raw, label }) => {
-    const id = extractDriveId(raw);
     let url, fallbacks;
-    if (id) {
-      // Drive: probar múltiples formatos en orden
-      url = `https://lh3.googleusercontent.com/d/${id}=w400`;
-      fallbacks = [
-        `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
-        `https://drive.google.com/uc?export=view&id=${id}`,
-        `https://docs.google.com/uc?id=${id}`,
-      ];
-    } else {
-      // AppSheet u otra URL — usar tal cual
-      url = raw;
+    if (isAppSheetPath(raw)) {
+      // Ruta relativa de AppSheet → construir URL con App ID
+      url = appSheetImgUrl(raw);
       fallbacks = [];
+    } else {
+      const id = extractDriveId(raw);
+      if (id) {
+        url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+        fallbacks = [
+          `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
+          `https://drive.google.com/uc?export=view&id=${id}`,
+        ];
+      } else {
+        url = raw;
+        fallbacks = [];
+      }
     }
     return { url, fallbacks, label, raw };
   });
