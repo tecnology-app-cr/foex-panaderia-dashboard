@@ -853,17 +853,34 @@ function parseGVizTable(json) {
 }
 
 function isImageUrl(val) {
-  if (typeof val !== 'string') return false;
-  return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)/i.test(val) ||
-    /drive\.google\.com\/file\/.+\/view/i.test(val) ||
-    /lh\d\.googleusercontent\.com/i.test(val) ||
-    /images\.appsheet\.com/i.test(val);
+  if (typeof val !== 'string' || !val.trim()) return false;
+  const v = val.trim();
+  return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|bmp)/i.test(v) ||
+    /drive\.google\.com/i.test(v) ||
+    /lh\d*\.googleusercontent\.com/i.test(v) ||
+    /googleusercontent\.com/i.test(v) ||
+    /appsheet\.com/i.test(v) ||
+    /images\.appsheet\.com/i.test(v);
+}
+
+function extractDriveId(url) {
+  if (!url) return null;
+  // /file/d/ID/view
+  let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  // open?id=ID  or  uc?id=ID  or  thumbnail?id=ID
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  // /d/ID/ (Docs/Sheets/Slides export style)
+  m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})\//);
+  if (m) return m[1];
+  return null;
 }
 
 function toViewUrl(url) {
   if (!url) return '';
-  const driveMatch = url.match(/\/file\/d\/([^\/]+)/);
-  if (driveMatch) return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w300`;
+  const id = extractDriveId(url);
+  if (id) return `https://lh3.googleusercontent.com/d/${id}=w400`;
   return url;
 }
 
@@ -1345,9 +1362,18 @@ function renderComunicacionExterna() {
   const images = filteredData
     .map(r => {
       const raw = String(r[COL_M] || '').trim();
-      return { url: toViewUrl(raw), raw, label: String(r[1] || r[0] || '').trim() };
+      if (!raw) return null;
+      const id = extractDriveId(raw);
+      const url = toViewUrl(raw);
+      // fallback URLs to try if primary fails
+      const fallbacks = id ? [
+        `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
+        `https://drive.google.com/uc?export=view&id=${id}`,
+      ] : [];
+      const label = String(r[1] || r[0] || '').trim();
+      return { url, raw, id, fallbacks, label, isImg: isImageUrl(raw) };
     })
-    .filter(({ raw }) => isImageUrl(raw));
+    .filter(item => item && item.isImg);
 
   if (!images.length) {
     track.innerHTML = '';
@@ -1356,15 +1382,22 @@ function renderComunicacionExterna() {
   } else {
     noImg.style.display = 'none';
     countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-    track.innerHTML = images.map(({ url, label }, idx) =>
-      `<div class="carousel-item" onclick="openLightbox('${url}')">
-        <img src="${url}" alt="${label}" loading="lazy" onerror="this.parentElement.style.display='none'">
+    track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
+      const fbAttr = fallbacks.length ? `data-fallbacks='${JSON.stringify(fallbacks)}'` : '';
+      return `<div class="carousel-item" onclick="openLightbox('${url}')">
+        <img src="${url}" alt="${label}" loading="lazy" ${fbAttr}
+          onerror="(function(img){
+            var fbs = JSON.parse(img.getAttribute('data-fallbacks')||'[]');
+            var next = fbs.shift();
+            if(next){ img.setAttribute('data-fallbacks',JSON.stringify(fbs)); img.src=next; }
+            else { img.parentElement.style.display='none'; }
+          })(this)">
         <div class="ci-info">
           <div class="ci-label">Foto ${idx + 1}</div>
           <div class="ci-name">${label || '—'}</div>
         </div>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   }
 }
 
