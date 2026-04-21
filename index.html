@@ -649,7 +649,7 @@
   <!-- SECTION TABS -->
   <div class="section-tabs">
     <button class="tab-btn active" onclick="switchTab('resumen',this)">Resumen General</button>
-    <button class="tab-btn" onclick="switchTab('encuestas',this)">Encuestas Registradas</button>
+    <button class="tab-btn" onclick="switchTab('encuestas',this)">Comunicación Externa</button>
     <button class="tab-btn" onclick="switchTab('imagenes',this)">Carrusel de Imágenes</button>
     <button class="tab-btn" onclick="switchTab('pendientes',this)">Tiendas Pendientes</button>
     <button class="tab-btn" onclick="switchTab('detalle',this)">Detalle por Sección</button>
@@ -748,17 +748,25 @@
 
   </div>
 
-  <!-- TAB: ENCUESTAS -->
+  <!-- TAB: COMUNICACIÓN EXTERNA -->
   <div class="panel" id="panel-encuestas">
-    <div class="table-wrapper">
-      <table id="encuestasTable">
-        <thead id="encuestasHead"></thead>
-        <tbody id="encuestasBody"></tbody>
-      </table>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Análisis de Comunicación Externa <span class="tag">COL. H – M</span></div>
+      <div id="comExtCharts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
     </div>
-    <div class="pagination">
-      <span id="pagInfo"></span>
-      <div class="pag-btns" id="pagBtns"></div>
+    <div class="carousel-section" id="comExtCarouselWrap">
+      <div class="carousel-header">
+        <div class="card-title">Fotografías de Campo <span class="tag">COL. M · APPSHEET</span></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="comExtImgCount" style="font-size:12px;color:var(--text2);"></span>
+          <div class="carousel-nav">
+            <button onclick="scrollCarrusel('comExtTrack',-320)">‹</button>
+            <button onclick="scrollCarrusel('comExtTrack',320)">›</button>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-track" id="comExtTrack"></div>
+      <div id="comExtNoImg" style="display:none;text-align:center;color:var(--text2);padding:2rem;font-size:13px;">No se encontraron imágenes en la columna M para los filtros actuales.</div>
     </div>
   </div>
 
@@ -940,7 +948,7 @@ function applyFilters() {
 
   currentPage = 1;
   renderKPIs();
-  renderTable();
+  renderComunicacionExterna();
   renderCarrusel();
   renderPendientes();
   renderCharts();
@@ -1220,52 +1228,145 @@ function idxToLetter(n) {
   return result;
 }
 
-function renderTable() {
-  const head = document.getElementById('encuestasHead');
-  const body = document.getElementById('encuestasBody');
-  const sections = ['H1','H2','H3','H4','H5'];
+const CHART_COLORS = ['#e8b84b','#4fc3a1','#e8604c','#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6','#38bdf8'];
 
-  // Build visible columns (skip H1-H5 marker cols, show first ~12 cols)
-  const visibleCols = colHeaders.map((h,i) => ({h,i})).filter(({h}) => !sections.includes(String(h).trim().toUpperCase())).slice(0,14);
+function renderComunicacionExterna() {
+  const COL_H = 7, COL_M = 12;
+  const SECTIONS_MARKER = ['H1','H2','H3','H4','H5'];
+  const chartsContainer = document.getElementById('comExtCharts');
+  chartsContainer.innerHTML = '';
 
-  head.innerHTML = '<tr>' + visibleCols.map(({h}) => `<th>${h}</th>`).join('') + '</tr>';
-
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const end = start + PAGE_SIZE;
-  const page = filteredData.slice(start, end);
-
-  body.innerHTML = page.map(row =>
-    '<tr>' + visibleCols.map(({h,i}) => {
-      const val = row[i];
-      const sval = String(val || '');
-      if (imgCols[i] || isImageUrl(sval)) {
-        return `<td><img class="img-thumb" src="${toViewUrl(sval)}" alt="img" onclick="openLightbox('${toViewUrl(sval)}')" onerror="this.style.display='none'"></td>`;
-      }
-      return `<td title="${sval}">${sval}</td>`;
-    }).join('') + '</tr>'
-  ).join('');
-
-  renderPagination();
-}
-
-function renderPagination() {
-  const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-  const info = document.getElementById('pagInfo');
-  const btns = document.getElementById('pagBtns');
-  const start = (currentPage-1)*PAGE_SIZE+1;
-  const end = Math.min(currentPage*PAGE_SIZE, filteredData.length);
-  info.textContent = `Mostrando ${start}–${end} de ${filteredData.length}`;
-
-  let html = '';
-  if (currentPage > 1) html += `<button class="pag-btn" onclick="goPage(${currentPage-1})">‹</button>`;
-  for (let p = Math.max(1,currentPage-2); p <= Math.min(totalPages,currentPage+2); p++) {
-    html += `<button class="pag-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+  // Destroy previous charts for this panel
+  for (let i = COL_H; i < COL_M; i++) {
+    destroyChart('cext_' + i);
   }
-  if (currentPage < totalPages) html += `<button class="pag-btn" onclick="goPage(${currentPage+1})">›</button>`;
-  btns.innerHTML = html;
-}
 
-function goPage(p) { currentPage = p; renderTable(); }
+  // --- Charts for columns H to L (indices 7-11, non-image) ---
+  const chartCols = [];
+  for (let i = COL_H; i < COL_M; i++) {
+    const header = String(colHeaders[i] || '').trim();
+    if (!header || SECTIONS_MARKER.includes(header.toUpperCase())) continue;
+    if (imgCols[i]) continue;
+    chartCols.push(i);
+  }
+
+  if (chartCols.length === 0) {
+    chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos en H–L con los filtros actuales.</div>';
+  } else {
+    chartCols.forEach(i => {
+      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
+      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
+      if (!vals.length) return;
+
+      const freq = {};
+      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      const top = entries.slice(0, 8);
+      const total = vals.length;
+      const useDoughnut = top.length <= 5;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      const canvasId = 'cext_' + i;
+
+      // Summary stats row
+      const uniqueCount = entries.length;
+      const topVal = top[0] ? top[0][0] : '—';
+      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
+
+      card.innerHTML = `
+        <div class="card-title" style="margin-bottom:6px;">${header}</div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Respuestas</div>
+            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
+          </div>
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Opciones únicas</div>
+            <div style="font-weight:700;font-size:16px;">${uniqueCount}</div>
+          </div>
+          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
+            <div style="color:var(--text2);">Más frecuente</div>
+            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
+          </div>
+        </div>
+        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
+          <canvas id="${canvasId}"></canvas>
+        </div>`;
+      chartsContainer.appendChild(card);
+
+      setTimeout(() => {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        destroyChart(canvasId);
+        charts[canvasId] = new Chart(ctx, {
+          type: useDoughnut ? 'doughnut' : 'bar',
+          data: {
+            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
+            datasets: [{
+              data: top.map(([, v]) => v),
+              backgroundColor: CHART_COLORS,
+              borderWidth: useDoughnut ? 2 : 0,
+              borderColor: '#fff',
+              borderRadius: useDoughnut ? 0 : 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: useDoughnut ? undefined : 'y',
+            plugins: {
+              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => {
+                    const pct = Math.round(ctx.parsed / total * 100);
+                    const val = useDoughnut ? ctx.parsed : ctx.parsed.x;
+                    return ` ${val.toLocaleString()} respuestas (${pct}%)`;
+                  }
+                }
+              }
+            },
+            scales: useDoughnut ? {} : {
+              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+              y: { ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+      }, 0);
+    });
+  }
+
+  // --- Carrusel columna M (índice 12) ---
+  const track = document.getElementById('comExtTrack');
+  const noImg = document.getElementById('comExtNoImg');
+  const countEl = document.getElementById('comExtImgCount');
+
+  const images = filteredData
+    .map(r => {
+      const raw = String(r[COL_M] || '').trim();
+      return { url: toViewUrl(raw), raw, label: String(r[1] || r[0] || '').trim() };
+    })
+    .filter(({ raw }) => isImageUrl(raw));
+
+  if (!images.length) {
+    track.innerHTML = '';
+    noImg.style.display = '';
+    countEl.textContent = '';
+  } else {
+    noImg.style.display = 'none';
+    countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
+    track.innerHTML = images.map(({ url, label }, idx) =>
+      `<div class="carousel-item" onclick="openLightbox('${url}')">
+        <img src="${url}" alt="${label}" loading="lazy" onerror="this.parentElement.style.display='none'">
+        <div class="ci-info">
+          <div class="ci-label">Foto ${idx + 1}</div>
+          <div class="ci-name">${label || '—'}</div>
+        </div>
+      </div>`
+    ).join('');
+  }
+}
 
 function renderCarrusel() {
   const sections = ['H1','H2','H3','H4','H5'];
