@@ -650,6 +650,7 @@
   <div class="section-tabs">
     <button class="tab-btn active" onclick="switchTab('resumen',this)">Resumen General</button>
     <button class="tab-btn" onclick="switchTab('encuestas',this)">Comunicación Externa</button>
+    <button class="tab-btn" onclick="switchTab('equipobebidas',this)">Equipo Bebidas y Comp</button>
     <button class="tab-btn" onclick="switchTab('imagenes',this)">Carrusel de Imágenes</button>
     <button class="tab-btn" onclick="switchTab('pendientes',this)">Tiendas Pendientes</button>
     <button class="tab-btn" onclick="switchTab('detalle',this)">Detalle por Sección</button>
@@ -767,6 +768,28 @@
       </div>
       <div class="carousel-track" id="comExtTrack"></div>
       <div id="comExtNoImg" style="display:none;text-align:center;color:var(--text2);padding:2rem;font-size:13px;">No se encontraron imágenes en la columna M para los filtros actuales.</div>
+    </div>
+  </div>
+
+  <!-- TAB: EQUIPO BEBIDAS Y COMP -->
+  <div class="panel" id="panel-equipobebidas">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Análisis Equipo Bebidas y Competencia <span class="tag">COL. O – X</span></div>
+      <div id="eqBebCharts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
+    </div>
+    <div class="carousel-section" id="eqBebCarouselWrap">
+      <div class="carousel-header">
+        <div class="card-title">Fotografías de Equipo <span class="tag">COL. T · APPSHEET</span></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="eqBebImgCount" style="font-size:12px;color:var(--text2);"></span>
+          <div class="carousel-nav">
+            <button onclick="scrollCarrusel('eqBebTrack',-320)">‹</button>
+            <button onclick="scrollCarrusel('eqBebTrack',320)">›</button>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-track" id="eqBebTrack"></div>
+      <div id="eqBebNoImg" style="display:none;text-align:center;color:var(--text2);padding:2rem;font-size:13px;">No se encontraron imágenes en la columna T para los filtros actuales.</div>
     </div>
   </div>
 
@@ -981,6 +1004,7 @@ function applyFilters() {
   currentPage = 1;
   renderKPIs();
   renderComunicacionExterna();
+  renderEquipoBebidas();
   renderCarrusel();
   renderPendientes();
   renderCharts();
@@ -1413,6 +1437,170 @@ function renderComunicacionExterna() {
     noImg.style.display = 'none';
     countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
     track.innerHTML = images.map(({ url, fallbacks, label, raw }, idx) => {
+      const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
+      return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
+        <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
+          onerror="(function(img){
+            var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');
+            var next=fbs.shift();
+            if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}
+            else{img.parentElement.style.display='none';}
+          })(this)">
+        <div class="ci-info">
+          <div class="ci-label">Foto ${idx + 1}</div>
+          <div class="ci-name">${label || '—'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function renderEquipoBebidas() {
+  const COL_O = 14, COL_X = 23, COL_T = 19; // T = imagen
+  const SECTIONS_MARKER = ['H1','H2','H3','H4','H5'];
+  const chartsContainer = document.getElementById('eqBebCharts');
+  if (!chartsContainer) return;
+  chartsContainer.innerHTML = '';
+
+  // Destruir gráficos previos
+  for (let i = COL_O; i <= COL_X; i++) destroyChart('eqbeb_' + i);
+
+  // --- Gráficos columnas O–X (excepto T que es imagen) ---
+  const chartCols = [];
+  for (let i = COL_O; i <= COL_X; i++) {
+    if (i === COL_T) continue; // saltar columna de imágenes
+    const header = String(colHeaders[i] || '').trim();
+    if (!header || SECTIONS_MARKER.includes(header.toUpperCase())) continue;
+    if (imgCols[i]) continue;
+    chartCols.push(i);
+  }
+
+  if (!chartCols.length) {
+    chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos en O–X con los filtros actuales.</div>';
+  } else {
+    chartCols.forEach(i => {
+      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
+      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
+      if (!vals.length) return;
+
+      const freq = {};
+      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      const top = entries.slice(0, 8);
+      const total = vals.length;
+      const useDoughnut = top.length <= 5;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      const canvasId = 'eqbeb_' + i;
+      const topVal = top[0] ? top[0][0] : '—';
+      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
+
+      card.innerHTML = `
+        <div class="card-title" style="margin-bottom:6px;">${header}</div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Respuestas</div>
+            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
+          </div>
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Opciones únicas</div>
+            <div style="font-weight:700;font-size:16px;">${entries.length}</div>
+          </div>
+          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
+            <div style="color:var(--text2);">Más frecuente</div>
+            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
+          </div>
+        </div>
+        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
+          <canvas id="${canvasId}"></canvas>
+        </div>`;
+      chartsContainer.appendChild(card);
+
+      setTimeout(() => {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        destroyChart(canvasId);
+        charts[canvasId] = new Chart(ctx, {
+          type: useDoughnut ? 'doughnut' : 'bar',
+          data: {
+            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
+            datasets: [{
+              data: top.map(([, v]) => v),
+              backgroundColor: CHART_COLORS,
+              borderWidth: useDoughnut ? 2 : 0,
+              borderColor: '#fff',
+              borderRadius: useDoughnut ? 0 : 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: useDoughnut ? undefined : 'y',
+            plugins: {
+              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+              tooltip: {
+                callbacks: {
+                  label: ctx => {
+                    const pct = Math.round(ctx.parsed / total * 100);
+                    const val = useDoughnut ? ctx.parsed : ctx.parsed.x;
+                    return ` ${val.toLocaleString()} respuestas (${pct}%)`;
+                  }
+                }
+              }
+            },
+            scales: useDoughnut ? {} : {
+              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+              y: { ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+      }, 0);
+    });
+  }
+
+  // --- Carrusel columna T (índice 19) ---
+  const track = document.getElementById('eqBebTrack');
+  const noImg = document.getElementById('eqBebNoImg');
+  const countEl = document.getElementById('eqBebImgCount');
+  if (!track) return;
+
+  const rawColT = filteredData
+    .map(r => ({
+      raw: String(r[COL_T] || '').trim(),
+      label: String(r[1] || r[0] || '').trim()
+    }))
+    .filter(item => item.raw.length > 0);
+
+  const images = rawColT.map(({ raw, label }) => {
+    let url, fallbacks;
+    if (isAppSheetPath(raw)) {
+      url = appSheetImgUrl(raw);
+      fallbacks = [];
+    } else {
+      const id = extractDriveId(raw);
+      if (id) {
+        url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+        fallbacks = [
+          `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
+          `https://drive.google.com/uc?export=view&id=${id}`,
+        ];
+      } else {
+        url = raw;
+        fallbacks = [];
+      }
+    }
+    return { url, fallbacks, label, raw };
+  });
+
+  if (!images.length) {
+    track.innerHTML = '';
+    noImg.style.display = '';
+    countEl.textContent = '';
+  } else {
+    noImg.style.display = 'none';
+    countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
+    track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
       const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
       return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
         <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
