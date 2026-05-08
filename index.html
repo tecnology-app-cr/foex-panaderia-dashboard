@@ -651,6 +651,7 @@
     <button class="tab-btn active" onclick="switchTab('resumen',this)">Resumen General</button>
     <button class="tab-btn" onclick="switchTab('encuestas',this)">Comunicación Externa</button>
     <button class="tab-btn" onclick="switchTab('equipobebidas',this)">Equipo Bebidas y Comp</button>
+    <button class="tab-btn" onclick="switchTab('equipocongelado',this)">Equipo Congelado</button>
     <button class="tab-btn" onclick="switchTab('imagenes',this)">Carrusel de Imágenes</button>
     <button class="tab-btn" onclick="switchTab('pendientes',this)">Tiendas Pendientes</button>
     <button class="tab-btn" onclick="switchTab('detalle',this)">Detalle por Sección</button>
@@ -791,6 +792,16 @@
       <div class="carousel-track" id="eqBebTrack"></div>
       <div id="eqBebNoImg" style="display:none;text-align:center;color:var(--text2);padding:2rem;font-size:13px;">No se encontraron imágenes en la columna T para los filtros actuales.</div>
     </div>
+  </div>
+
+  <!-- TAB: EQUIPO CONGELADO -->
+  <div class="panel" id="panel-equipocongelado">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Análisis Equipo Congelado <span class="tag">COL. Z – AL</span></div>
+      <div id="eqConCharts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
+    </div>
+    <!-- Los carruseles se generan dinámicamente por JS (una por cada columna de imagen detectada) -->
+    <div id="eqConCarousels"></div>
   </div>
 
   <!-- TAB: IMÁGENES -->
@@ -1005,6 +1016,7 @@ function applyFilters() {
   renderKPIs();
   renderComunicacionExterna();
   renderEquipoBebidas();
+  renderEquipoCongelado();
   renderCarrusel();
   renderPendientes();
   renderCharts();
@@ -1617,6 +1629,209 @@ function renderEquipoBebidas() {
       </div>`;
     }).join('');
   }
+}
+
+function renderEquipoCongelado() {
+  const COL_Z = 25, COL_AL = 37;
+  const SECTIONS_MARKER = ['H1','H2','H3','H4','H5'];
+  const chartsContainer = document.getElementById('eqConCharts');
+  const carouselsContainer = document.getElementById('eqConCarousels');
+  if (!chartsContainer || !carouselsContainer) return;
+
+  chartsContainer.innerHTML = '';
+  carouselsContainer.innerHTML = '';
+  for (let i = COL_Z; i <= COL_AL; i++) destroyChart('eqcon_' + i);
+
+  // Separar columnas de datos vs columnas de imagen en el rango Z-AL
+  const chartCols = [], imgColsInRange = [];
+  for (let i = COL_Z; i <= COL_AL; i++) {
+    const header = String(colHeaders[i] || '').trim();
+    if (!header || SECTIONS_MARKER.includes(header.toUpperCase())) continue;
+
+    // Detectar si es columna de imagen revisando los datos reales
+    const isImg = imgCols[i] || filteredData.slice(0, 15).some(r => {
+      const v = String(r[i] || '').trim();
+      return isImageUrl(v) || isAppSheetPath(v);
+    });
+
+    if (isImg) imgColsInRange.push(i);
+    else chartCols.push(i);
+  }
+
+  // --- GRÁFICOS (columnas no-imagen) ---
+  if (!chartCols.length) {
+    chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos en Z–AL.</div>';
+  } else {
+    chartCols.forEach(i => {
+      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
+      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
+      if (!vals.length) return;
+
+      const freq = {};
+      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      const top = entries.slice(0, 8);
+      const total = vals.length;
+      const useDoughnut = top.length <= 5;
+      const canvasId = 'eqcon_' + i;
+      const topVal = top[0] ? top[0][0] : '—';
+      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-title" style="margin-bottom:6px;">${header}</div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Respuestas</div>
+            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
+          </div>
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Opciones únicas</div>
+            <div style="font-weight:700;font-size:16px;">${entries.length}</div>
+          </div>
+          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
+            <div style="color:var(--text2);">Más frecuente</div>
+            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
+          </div>
+        </div>
+        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
+          <canvas id="${canvasId}"></canvas>
+        </div>`;
+      chartsContainer.appendChild(card);
+
+      setTimeout(() => {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        destroyChart(canvasId);
+        charts[canvasId] = new Chart(ctx, {
+          type: useDoughnut ? 'doughnut' : 'bar',
+          data: {
+            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
+            datasets: [{
+              data: top.map(([, v]) => v),
+              backgroundColor: CHART_COLORS,
+              borderWidth: useDoughnut ? 2 : 0,
+              borderColor: '#fff',
+              borderRadius: useDoughnut ? 0 : 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: useDoughnut ? undefined : 'y',
+            plugins: {
+              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+              tooltip: {
+                callbacks: {
+                  label: c => {
+                    const pct = Math.round(c.parsed / total * 100);
+                    const val = useDoughnut ? c.parsed : c.parsed.x;
+                    return ` ${val.toLocaleString()} respuestas (${pct}%)`;
+                  }
+                }
+              }
+            },
+            scales: useDoughnut ? {} : {
+              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+              y: { ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+      }, 0);
+    });
+  }
+
+  // --- CARRUSELES SEPARADOS por cada columna de imagen detectada ---
+  if (!imgColsInRange.length) {
+    carouselsContainer.innerHTML = '<div class="card" style="text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de imágenes en Z–AL.</div>';
+    return;
+  }
+
+  imgColsInRange.forEach((colIdx, carouselNum) => {
+    const colLabel = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
+    const trackId = 'eqConTrack_' + colIdx;
+    const noImgId = 'eqConNoImg_' + colIdx;
+    const countId = 'eqConCount_' + colIdx;
+
+    // Construir HTML del carrusel
+    const section = document.createElement('div');
+    section.className = 'carousel-section';
+    section.style.marginBottom = '16px';
+    section.innerHTML = `
+      <div class="carousel-header">
+        <div class="card-title">
+          📷 ${colLabel}
+          <span class="tag">COL. ${idxToLetter(colIdx).toUpperCase()} · APPSHEET</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="${countId}" style="font-size:12px;color:var(--text2);"></span>
+          <div class="carousel-nav">
+            <button onclick="scrollCarrusel('${trackId}',-320)">‹</button>
+            <button onclick="scrollCarrusel('${trackId}',320)">›</button>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-track" id="${trackId}"></div>
+      <div id="${noImgId}" style="display:none;text-align:center;color:var(--text2);padding:1.5rem;font-size:13px;">
+        No se encontraron imágenes en esta columna para los filtros actuales.
+      </div>`;
+    carouselsContainer.appendChild(section);
+
+    // Cargar imágenes en este carrusel
+    const rawItems = filteredData
+      .map(r => ({
+        raw: String(r[colIdx] || '').trim(),
+        label: String(r[1] || r[0] || '').trim()
+      }))
+      .filter(item => item.raw.length > 0);
+
+    const images = rawItems.map(({ raw, label }) => {
+      let url, fallbacks;
+      if (isAppSheetPath(raw)) {
+        url = appSheetImgUrl(raw);
+        fallbacks = [];
+      } else {
+        const id = extractDriveId(raw);
+        if (id) {
+          url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+          fallbacks = [
+            `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
+            `https://drive.google.com/uc?export=view&id=${id}`,
+          ];
+        } else { url = raw; fallbacks = []; }
+      }
+      return { url, fallbacks, label };
+    });
+
+    const track = document.getElementById(trackId);
+    const noImg = document.getElementById(noImgId);
+    const countEl = document.getElementById(countId);
+
+    if (!images.length) {
+      noImg.style.display = '';
+      countEl.textContent = '';
+    } else {
+      noImg.style.display = 'none';
+      countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
+      track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
+        const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
+        return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
+          <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
+            onerror="(function(img){
+              var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');
+              var next=fbs.shift();
+              if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}
+              else{img.parentElement.style.display='none';}
+            })(this)">
+          <div class="ci-info">
+            <div class="ci-label">Foto ${idx + 1}</div>
+            <div class="ci-name">${label || '—'}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  });
 }
 
 function renderCarrusel() {
