@@ -789,6 +789,8 @@
           </div>
         </div>
       </div>
+      <!-- Filtro interactivo por columna S -->
+      <div id="eqBebFilterChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:0 2px;"></div>
       <div class="carousel-track" id="eqBebTrack"></div>
       <div id="eqBebNoImg" style="display:none;text-align:center;color:var(--text2);padding:2rem;font-size:13px;">No se encontraron imágenes en la columna T para los filtros actuales.</div>
     </div>
@@ -1787,42 +1789,81 @@ function renderEquipoBebidas() {
     });
   }
 
-  // --- Carrusel columna T (índice 19) ---
-  const track = document.getElementById('eqBebTrack');
-  const noImg = document.getElementById('eqBebNoImg');
+  // --- Carrusel columna T (índice 19) filtrado por columna S (índice 18) ---
+  const track   = document.getElementById('eqBebTrack');
+  const noImg   = document.getElementById('eqBebNoImg');
   const countEl = document.getElementById('eqBebImgCount');
+  const chipsEl = document.getElementById('eqBebFilterChips');
   if (!track) return;
 
   const { storeCol, dateCol } = detectStoreAndDateCols();
-  const rawColT = filteredData
+
+  // Array completo con valor de col. S para filtrado posterior
+  window._eqBebImages = filteredData
     .map(r => ({
-      raw:   String(r[COL_T]    || '').trim(),
-      label: String(r[storeCol] || r[0] || '').trim(),
-      date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
+      raw:       String(r[COL_T] || '').trim(),
+      label:     (r[storeCol] !== '' && r[storeCol] != null) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
+      date:      dateCol >= 0 ? String(r[dateCol] || '').trim() : '',
+      filterVal: String(r[18] || '').trim()   // col. S = índice 18
     }))
-    .filter(item => item.raw.length > 0);
+    .filter(item => item.raw.length > 0)
+    .map(item => {
+      let url, fallbacks;
+      if (isAppSheetPath(item.raw)) {
+        url = appSheetImgUrl(item.raw); fallbacks = [];
+      } else {
+        const id = extractDriveId(item.raw);
+        if (id) {
+          url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+          fallbacks = [`https://drive.google.com/thumbnail?id=${id}&sz=w400`, `https://drive.google.com/uc?export=view&id=${id}`];
+        } else { url = item.raw; fallbacks = []; }
+      }
+      return { ...item, url, fallbacks };
+    });
 
-  const images = rawColT.map(({ raw, label, date }) => {
-    let url, fallbacks;
-    if (isAppSheetPath(raw)) {
-      url = appSheetImgUrl(raw); fallbacks = [];
-    } else {
-      const id = extractDriveId(raw);
-      if (id) {
-        url = `https://lh3.googleusercontent.com/d/${id}=w400`;
-        fallbacks = [
-          `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
-          `https://drive.google.com/uc?export=view&id=${id}`,
-        ];
-      } else { url = raw; fallbacks = []; }
-    }
-    return { url, fallbacks, label, date };
+  // Chips de filtro — valores únicos de col. S
+  const uniqueVals = [...new Set(window._eqBebImages.map(img => img.filterVal).filter(Boolean))].sort();
+  if (chipsEl) {
+    const base = 'display:inline-flex;align-items:center;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid;transition:all 0.15s;margin-bottom:4px;';
+    chipsEl.innerHTML =
+      `<span data-val="__all__" onclick="filterEqBebCarousel('__all__',this)"
+         style="${base}background:var(--primary);color:var(--accent);border-color:var(--primary);">
+         Todas <span style="margin-left:5px;background:#ffffff22;border-radius:10px;padding:1px 6px;font-size:10px;">${window._eqBebImages.length}</span></span>` +
+      uniqueVals.map(v => {
+        const cnt = window._eqBebImages.filter(img => img.filterVal === v).length;
+        return `<span data-val="${v.replace(/"/g,'&quot;')}" onclick="filterEqBebCarousel(${JSON.stringify(v)},this)"
+          style="${base}background:var(--card);color:var(--text2);border-color:var(--border);">
+          ${v} <span style="margin-left:5px;background:#e5e7eb;border-radius:10px;padding:1px 6px;font-size:10px;">${cnt}</span></span>`;
+      }).join('');
+  }
+
+  renderEqBebTrack(window._eqBebImages);
+}
+
+function filterEqBebCarousel(val, chipEl) {
+  document.querySelectorAll('#eqBebFilterChips span').forEach(c => {
+    c.style.background = 'var(--card)';
+    c.style.color = 'var(--text2)';
+    c.style.borderColor = 'var(--border)';
   });
+  chipEl.style.background = 'var(--primary)';
+  chipEl.style.color = 'var(--accent)';
+  chipEl.style.borderColor = 'var(--primary)';
+  const imgs = val === '__all__'
+    ? (window._eqBebImages || [])
+    : (window._eqBebImages || []).filter(img => img.filterVal === val);
+  renderEqBebTrack(imgs);
+}
 
+function renderEqBebTrack(images) {
+  const track   = document.getElementById('eqBebTrack');
+  const noImg   = document.getElementById('eqBebNoImg');
+  const countEl = document.getElementById('eqBebImgCount');
+  if (!track) return;
   if (!images.length) {
     track.innerHTML = '';
     noImg.style.display = '';
-    countEl.textContent = '';
+    countEl.textContent = '0 fotos';
   } else {
     noImg.style.display = 'none';
     countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
