@@ -1831,7 +1831,8 @@ function renderEquipoBebidas() {
          Todas <span style="margin-left:5px;background:#ffffff22;border-radius:10px;padding:1px 6px;font-size:10px;">${window._eqBebImages.length}</span></span>` +
       uniqueVals.map(v => {
         const cnt = window._eqBebImages.filter(img => img.filterVal === v).length;
-        return `<span data-val="${v.replace(/"/g,'&quot;')}" onclick="filterEqBebCarousel(${JSON.stringify(v)},this)"
+        const safeV = v.replace(/'/g, "\\'");
+        return `<span onclick="filterEqBebCarousel('${safeV}',this)"
           style="${base}background:var(--card);color:var(--text2);border-color:var(--border);">
           ${v} <span style="margin-left:5px;background:#e5e7eb;border-radius:10px;padding:1px 6px;font-size:10px;">${cnt}</span></span>`;
       }).join('');
