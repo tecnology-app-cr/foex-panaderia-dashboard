@@ -1991,13 +1991,19 @@ function renderEquipoCongelado() {
     return;
   }
 
-  imgColsInRange.forEach((colIdx, carouselNum) => {
-    const colLabel = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
-    const trackId = 'eqConTrack_' + colIdx;
-    const noImgId = 'eqConNoImg_' + colIdx;
-    const countId = 'eqConCount_' + colIdx;
+  // Mapa: columna imagen → columna de filtro
+  const filterColMap = { 28: 27, 32: 31 };  // AC→AB, AG→AF
 
-    // Construir HTML del carrusel
+  imgColsInRange.forEach(colIdx => {
+    const colLabel   = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
+    const trackId    = 'eqConTrack_' + colIdx;
+    const noImgId    = 'eqConNoImg_' + colIdx;
+    const countId    = 'eqConCount_' + colIdx;
+    const chipsId    = 'eqConChips_' + colIdx;
+    const filterCol  = filterColMap[colIdx];  // columna filtro (puede ser undefined)
+    const filterLabel = filterCol !== undefined ? (colHeaders[filterCol] || idxToLetter(filterCol).toUpperCase()) : '';
+
+    // HTML del carrusel
     const section = document.createElement('div');
     section.className = 'carousel-section';
     section.style.marginBottom = '16px';
@@ -2015,54 +2021,98 @@ function renderEquipoCongelado() {
           </div>
         </div>
       </div>
+      ${filterCol !== undefined ? `<div id="${chipsId}" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:0 2px;"></div>` : ''}
       <div class="carousel-track" id="${trackId}"></div>
       <div id="${noImgId}" style="display:none;text-align:center;color:var(--text2);padding:1.5rem;font-size:13px;">
-        No se encontraron imágenes en esta columna para los filtros actuales.
+        No se encontraron imágenes para los filtros actuales.
       </div>`;
     carouselsContainer.appendChild(section);
 
-    // Cargar imágenes en este carrusel
+    // Construir imágenes con filterVal desde la columna de filtro
     const { storeCol, dateCol } = detectStoreAndDateCols();
-    const rawItems = filteredData
+    const images = filteredData
       .map(r => ({
-        raw:   String(r[colIdx]   || '').trim(),
-        label: (r[storeCol] !== '' && r[storeCol] !== null && r[storeCol] !== undefined) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
-        date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
+        raw:       String(r[colIdx] || '').trim(),
+        label:     (r[storeCol] !== '' && r[storeCol] != null) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
+        date:      dateCol >= 0 ? String(r[dateCol] || '').trim() : '',
+        filterVal: filterCol !== undefined ? String(r[filterCol] || '').trim() : ''
       }))
-      .filter(item => item.raw.length > 0);
+      .filter(item => item.raw.length > 0)
+      .map(item => {
+        let url, fallbacks;
+        if (isAppSheetPath(item.raw)) {
+          url = appSheetImgUrl(item.raw); fallbacks = [];
+        } else {
+          const id = extractDriveId(item.raw);
+          if (id) {
+            url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+            fallbacks = [`https://drive.google.com/thumbnail?id=${id}&sz=w400`, `https://drive.google.com/uc?export=view&id=${id}`];
+          } else { url = item.raw; fallbacks = []; }
+        }
+        return { ...item, url, fallbacks };
+      });
 
-    const images = rawItems.map(({ raw, label, date }) => {
-      let url, fallbacks;
-      if (isAppSheetPath(raw)) {
-        url = appSheetImgUrl(raw); fallbacks = [];
-      } else {
-        const id = extractDriveId(raw);
-        if (id) {
-          url = `https://lh3.googleusercontent.com/d/${id}=w400`;
-          fallbacks = [
-            `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
-            `https://drive.google.com/uc?export=view&id=${id}`,
-          ];
-        } else { url = raw; fallbacks = []; }
+    // Guardar para re-filtrado
+    if (!window._eqConImages) window._eqConImages = {};
+    window._eqConImages[colIdx] = images;
+
+    // Chips de filtro
+    if (filterCol !== undefined) {
+      const chipsEl = document.getElementById(chipsId);
+      const uniqueVals = [...new Set(images.map(img => img.filterVal).filter(Boolean))].sort();
+      const base = 'display:inline-flex;align-items:center;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid;transition:all 0.15s;margin-bottom:4px;';
+      if (chipsEl) {
+        chipsEl.innerHTML =
+          `<span onclick="filterEqConCarousel(${colIdx},'__all__',this)"
+             style="${base}background:var(--primary);color:var(--accent);border-color:var(--primary);">
+             Todas <span style="margin-left:5px;background:#ffffff22;border-radius:10px;padding:1px 6px;font-size:10px;">${images.length}</span></span>` +
+          uniqueVals.map(v => {
+            const cnt = images.filter(img => img.filterVal === v).length;
+            const safeV = v.replace(/'/g, "\\'");
+            return `<span onclick="filterEqConCarousel(${colIdx},'${safeV}',this)"
+              style="${base}background:var(--card);color:var(--text2);border-color:var(--border);">
+              ${v} <span style="margin-left:5px;background:#e5e7eb;border-radius:10px;padding:1px 6px;font-size:10px;">${cnt}</span></span>`;
+          }).join('');
       }
-      return { url, fallbacks, label, date };
-    });
-
-    const track = document.getElementById(trackId);
-    const noImg = document.getElementById(noImgId);
-    const countEl = document.getElementById(countId);
-
-    if (!images.length) {
-      noImg.style.display = '';
-      countEl.textContent = '';
-    } else {
-      noImg.style.display = 'none';
-      countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-      track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
-        buildCarouselItem(url, fallbacks, label, date, idx)
-      ).join('');
     }
+
+    // Renderizar carrusel completo
+    _renderEqConTrack(colIdx, images);
   });
+}
+
+function filterEqConCarousel(colIdx, val, chipEl) {
+  const chipsId = 'eqConChips_' + colIdx;
+  document.querySelectorAll('#' + chipsId + ' span').forEach(c => {
+    c.style.background = 'var(--card)';
+    c.style.color = 'var(--text2)';
+    c.style.borderColor = 'var(--border)';
+  });
+  chipEl.style.background = 'var(--primary)';
+  chipEl.style.color = 'var(--accent)';
+  chipEl.style.borderColor = 'var(--primary)';
+
+  const all = (window._eqConImages || {})[colIdx] || [];
+  const imgs = val === '__all__' ? all : all.filter(img => img.filterVal === val);
+  _renderEqConTrack(colIdx, imgs);
+}
+
+function _renderEqConTrack(colIdx, images) {
+  const track   = document.getElementById('eqConTrack_' + colIdx);
+  const noImg   = document.getElementById('eqConNoImg_' + colIdx);
+  const countEl = document.getElementById('eqConCount_' + colIdx);
+  if (!track) return;
+  if (!images.length) {
+    track.innerHTML = '';
+    noImg.style.display = '';
+    countEl.textContent = '0 fotos';
+  } else {
+    noImg.style.display = 'none';
+    countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
+    track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
+      buildCarouselItem(url, fallbacks, label, date, idx)
+    ).join('');
+  }
 }
 
 function renderMueblesDP() {
