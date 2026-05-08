@@ -652,6 +652,8 @@
     <button class="tab-btn" onclick="switchTab('encuestas',this)">Comunicación Externa</button>
     <button class="tab-btn" onclick="switchTab('equipobebidas',this)">Equipo Bebidas y Comp</button>
     <button class="tab-btn" onclick="switchTab('equipocongelado',this)">Equipo Congelado</button>
+    <button class="tab-btn" onclick="switchTab('mueblesDP',this)">Muebles DP</button>
+    <button class="tab-btn" onclick="switchTab('equipogranja',this)">Equipo la Granja</button>
     <button class="tab-btn" onclick="switchTab('imagenes',this)">Carrusel de Imágenes</button>
     <button class="tab-btn" onclick="switchTab('pendientes',this)">Tiendas Pendientes</button>
     <button class="tab-btn" onclick="switchTab('detalle',this)">Detalle por Sección</button>
@@ -802,6 +804,24 @@
     </div>
     <!-- Los carruseles se generan dinámicamente por JS (una por cada columna de imagen detectada) -->
     <div id="eqConCarousels"></div>
+  </div>
+
+  <!-- TAB: MUEBLES DP -->
+  <div class="panel" id="panel-mueblesDP">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Análisis Muebles DP <span class="tag">COL. AN – AV</span></div>
+      <div id="mueblesDPCharts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
+    </div>
+    <div id="mueblesDPCarousels"></div>
+  </div>
+
+  <!-- TAB: EQUIPO LA GRANJA -->
+  <div class="panel" id="panel-equipogranja">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">Análisis Equipo la Granja <span class="tag">COL. AX – BI</span></div>
+      <div id="eqGranjaCharts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
+    </div>
+    <div id="eqGranjaCarousels"></div>
   </div>
 
   <!-- TAB: IMÁGENES -->
@@ -1017,6 +1037,8 @@ function applyFilters() {
   renderComunicacionExterna();
   renderEquipoBebidas();
   renderEquipoCongelado();
+  renderMueblesDP();
+  renderEquipoGranja();
   renderCarrusel();
   renderPendientes();
   renderCharts();
@@ -1297,6 +1319,194 @@ function idxToLetter(n) {
 }
 
 const CHART_COLORS = ['#e8b84b','#4fc3a1','#e8604c','#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6','#38bdf8'];
+
+/* ─── FUNCIÓN GENÉRICA PARA SECCIONES DE ANÁLISIS + CARRUSELES ─────────────
+   chartsId      : id del contenedor de gráficos
+   carouselsId   : id del contenedor de carruseles
+   colStart      : índice 0-based de la primera columna
+   colEnd        : índice 0-based de la última columna (inclusive)
+   imgColsForced : array opcional de índices que SIEMPRE son imagen
+────────────────────────────────────────────────────────────────────────── */
+function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgColsForced = [] }) {
+  const SECTIONS_MARKER = ['H1','H2','H3','H4','H5'];
+  const chartsContainer  = document.getElementById(chartsId);
+  const carouselsContainer = document.getElementById(carouselsId);
+  if (!chartsContainer || !carouselsContainer) return;
+
+  chartsContainer.innerHTML  = '';
+  carouselsContainer.innerHTML = '';
+  for (let i = colStart; i <= colEnd; i++) destroyChart('gensec_' + chartsId + '_' + i);
+
+  // Separar columnas dato vs imagen
+  const chartCols = [], imgColsList = [];
+  for (let i = colStart; i <= colEnd; i++) {
+    const header = String(colHeaders[i] || '').trim();
+    if (!header || SECTIONS_MARKER.includes(header.toUpperCase())) continue;
+
+    const forcedImg = imgColsForced.includes(i);
+    const autoImg   = imgCols[i] || filteredData.slice(0, 15).some(r => {
+      const v = String(r[i] || '').trim();
+      return isImageUrl(v) || isAppSheetPath(v);
+    });
+
+    if (forcedImg || autoImg) imgColsList.push(i);
+    else chartCols.push(i);
+  }
+
+  // ── GRÁFICOS ──────────────────────────────────────────────────────────
+  if (!chartCols.length) {
+    chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos con los filtros actuales.</div>';
+  } else {
+    chartCols.forEach(i => {
+      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
+      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
+      if (!vals.length) return;
+
+      const freq = {};
+      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      const top = entries.slice(0, 8);
+      const total = vals.length;
+      const useDoughnut = top.length <= 5;
+      const canvasId = 'gensec_' + chartsId + '_' + i;
+      const topVal = top[0] ? top[0][0] : '—';
+      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-title" style="margin-bottom:6px;">${header}</div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Respuestas</div>
+            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
+          </div>
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+            <div style="color:var(--text2);">Opciones únicas</div>
+            <div style="font-weight:700;font-size:16px;">${entries.length}</div>
+          </div>
+          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
+            <div style="color:var(--text2);">Más frecuente</div>
+            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
+          </div>
+        </div>
+        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
+          <canvas id="${canvasId}"></canvas>
+        </div>`;
+      chartsContainer.appendChild(card);
+
+      setTimeout(() => {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        destroyChart(canvasId);
+        charts[canvasId] = new Chart(ctx, {
+          type: useDoughnut ? 'doughnut' : 'bar',
+          data: {
+            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
+            datasets: [{
+              data: top.map(([, v]) => v),
+              backgroundColor: CHART_COLORS,
+              borderWidth: useDoughnut ? 2 : 0,
+              borderColor: '#fff',
+              borderRadius: useDoughnut ? 0 : 4,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            indexAxis: useDoughnut ? undefined : 'y',
+            plugins: {
+              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+              tooltip: { callbacks: { label: c => {
+                const pct = Math.round(c.parsed / total * 100);
+                const val = useDoughnut ? c.parsed : c.parsed.x;
+                return ` ${val.toLocaleString()} respuestas (${pct}%)`;
+              }}}
+            },
+            scales: useDoughnut ? {} : {
+              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+              y: { ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+      }, 0);
+    });
+  }
+
+  // ── CARRUSELES (uno por cada columna imagen) ───────────────────────────
+  if (!imgColsList.length) {
+    carouselsContainer.innerHTML = '<div class="card" style="text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de imágenes en el rango.</div>';
+    return;
+  }
+
+  imgColsList.forEach(colIdx => {
+    const colLabel = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
+    const trackId  = 'track_' + chartsId + '_' + colIdx;
+    const noImgId  = 'noimg_' + chartsId + '_' + colIdx;
+    const countId  = 'count_' + chartsId + '_' + colIdx;
+
+    const section = document.createElement('div');
+    section.className = 'carousel-section';
+    section.style.marginBottom = '16px';
+    section.innerHTML = `
+      <div class="carousel-header">
+        <div class="card-title">📷 ${colLabel} <span class="tag">COL. ${idxToLetter(colIdx).toUpperCase()} · APPSHEET</span></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="${countId}" style="font-size:12px;color:var(--text2);"></span>
+          <div class="carousel-nav">
+            <button onclick="scrollCarrusel('${trackId}',-320)">‹</button>
+            <button onclick="scrollCarrusel('${trackId}',320)">›</button>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-track" id="${trackId}"></div>
+      <div id="${noImgId}" style="display:none;text-align:center;color:var(--text2);padding:1.5rem;font-size:13px;">
+        No se encontraron imágenes para los filtros actuales.
+      </div>`;
+    carouselsContainer.appendChild(section);
+
+    const images = filteredData
+      .map(r => ({ raw: String(r[colIdx] || '').trim(), label: String(r[1] || r[0] || '').trim() }))
+      .filter(item => item.raw.length > 0)
+      .map(({ raw, label }) => {
+        let url, fallbacks;
+        if (isAppSheetPath(raw)) {
+          url = appSheetImgUrl(raw); fallbacks = [];
+        } else {
+          const id = extractDriveId(raw);
+          if (id) {
+            url = `https://lh3.googleusercontent.com/d/${id}=w400`;
+            fallbacks = [
+              `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
+              `https://drive.google.com/uc?export=view&id=${id}`,
+            ];
+          } else { url = raw; fallbacks = []; }
+        }
+        return { url, fallbacks, label };
+      });
+
+    const track  = document.getElementById(trackId);
+    const noImg  = document.getElementById(noImgId);
+    const countEl = document.getElementById(countId);
+
+    if (!images.length) {
+      noImg.style.display = ''; countEl.textContent = '';
+    } else {
+      noImg.style.display = 'none';
+      countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
+      track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
+        const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
+        return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
+          <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
+            onerror="(function(img){var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');var next=fbs.shift();if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}else{img.parentElement.style.display='none';}})(this)">
+          <div class="ci-info">
+            <div class="ci-label">Foto ${idx + 1}</div>
+            <div class="ci-name">${label || '—'}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  });
+}
 
 function renderComunicacionExterna() {
   const COL_H = 7, COL_M = 12;
@@ -1831,6 +2041,26 @@ function renderEquipoCongelado() {
         </div>`;
       }).join('');
     }
+  });
+}
+
+function renderMueblesDP() {
+  renderAnalysisSection({
+    chartsId:      'mueblesDPCharts',
+    carouselsId:   'mueblesDPCarousels',
+    colStart:      39,   // AN
+    colEnd:        47,   // AV
+    imgColsForced: [41, 45] // AP = Llenado / AT = segunda foto
+  });
+}
+
+function renderEquipoGranja() {
+  renderAnalysisSection({
+    chartsId:      'eqGranjaCharts',
+    carouselsId:   'eqGranjaCarousels',
+    colStart:      49,   // AX
+    colEnd:        60,   // BI
+    imgColsForced: [54, 59] // BC y BH
   });
 }
 
