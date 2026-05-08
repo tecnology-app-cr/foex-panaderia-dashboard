@@ -1304,7 +1304,7 @@ function detectStoreAndDateCols() {
     if (storeCol === -1 && storeRx.test(header)) storeCol = i;
     if (dateCol  === -1 && dateRx.test(header))  dateCol  = i;
   });
-  if (storeCol === -1) storeCol = 1; // fallback columna B
+  if (storeCol === -1) storeCol = 3; // fallback columna D
   return { storeCol, dateCol };
 }
 
