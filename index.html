@@ -1294,18 +1294,16 @@ function idxToLetter(n) {
 
 const CHART_COLORS = ['#e8b84b','#4fc3a1','#e8604c','#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6','#38bdf8'];
 
-// Detecta columna de nombre de tienda y columna de fecha en los headers
+// Nombre de tienda: columna D (índice 3, confirmado por el usuario)
+// Fecha: detectada automáticamente por header
 function detectStoreAndDateCols() {
-  const storeRx = /tienda|nombre|local|establecimiento|negocio|comercio|panaderi/i;
-  const dateRx  = /fecha|date|timestamp|hora/i;
-  let storeCol = -1, dateCol = -1;
+  const dateRx = /fecha|date|timestamp|hora/i;
+  let dateCol = -1;
   colHeaders.forEach((h, i) => {
     const header = String(h || '').trim();
-    if (storeCol === -1 && storeRx.test(header)) storeCol = i;
-    if (dateCol  === -1 && dateRx.test(header))  dateCol  = i;
+    if (dateCol === -1 && dateRx.test(header)) dateCol = i;
   });
-  if (storeCol === -1) storeCol = 3; // fallback columna D
-  return { storeCol, dateCol };
+  return { storeCol: 3, dateCol }; // columna D = índice 3
 }
 
 // Formatea fecha: "2024-05-08" → "08/05/2024", preserva otros strings
