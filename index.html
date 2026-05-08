@@ -1306,14 +1306,22 @@ function detectStoreAndDateCols() {
   return { storeCol: 3, dateCol }; // columna D = índice 3
 }
 
-// Formatea fecha: "2024-05-08" → "08/05/2024", preserva otros strings
+// Formatea fecha a DD/MM/YYYY — maneja formato GViz, ISO y Date JS
 function formatDate(val) {
   if (!val) return '';
   const s = String(val).trim();
-  // Formato ISO date: YYYY-MM-DD (con o sin hora)
+  // Formato GViz: Date(2026,2,27)  → mes es 0-based
+  const gviz = s.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})\)/);
+  if (gviz) {
+    const y = gviz[1];
+    const m = String(parseInt(gviz[2]) + 1).padStart(2, '0');
+    const d = String(gviz[3]).padStart(2, '0');
+    return `${d}/${m}/${y}`;
+  }
+  // Formato ISO: YYYY-MM-DD
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
-  // Date JS object string
+  // Fallback: intentar parsear como Date JS
   const d = new Date(s);
   if (!isNaN(d.getTime()) && s.length > 5) {
     return d.toLocaleDateString('es-CR', { day:'2-digit', month:'2-digit', year:'numeric' });
