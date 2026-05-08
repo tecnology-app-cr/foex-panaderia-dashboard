@@ -1354,7 +1354,7 @@ function buildCarouselItem(url, fallbacks, storeName, date, idx) {
    colEnd        : índice 0-based de la última columna (inclusive)
    imgColsForced : array opcional de índices que SIEMPRE son imagen
 ────────────────────────────────────────────────────────────────────────── */
-function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgColsForced = [] }) {
+function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgColsForced = [], filterMap = {} }) {
   const SECTIONS_MARKER = ['H1','H2','H3','H4','H5'];
   const chartsContainer  = document.getElementById(chartsId);
   const carouselsContainer = document.getElementById(carouselsId);
@@ -1466,10 +1466,13 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
   }
 
   imgColsList.forEach(colIdx => {
-    const colLabel = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
-    const trackId  = 'track_' + chartsId + '_' + colIdx;
-    const noImgId  = 'noimg_' + chartsId + '_' + colIdx;
-    const countId  = 'count_' + chartsId + '_' + colIdx;
+    const colLabel   = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
+    const trackId    = 'track_'  + chartsId + '_' + colIdx;
+    const noImgId    = 'noimg_'  + chartsId + '_' + colIdx;
+    const countId    = 'count_'  + chartsId + '_' + colIdx;
+    const chipsId    = 'chips_'  + chartsId + '_' + colIdx;
+    const filterColIdx = (filterMap[colIdx] !== undefined) ? filterMap[colIdx] : -1;
+    const hasFilter  = filterColIdx >= 0;
 
     const section = document.createElement('div');
     section.className = 'carousel-section';
@@ -1485,6 +1488,7 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
           </div>
         </div>
       </div>
+      ${hasFilter ? `<div id="${chipsId}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>` : ''}
       <div class="carousel-track" id="${trackId}"></div>
       <div id="${noImgId}" style="display:none;text-align:center;color:var(--text2);padding:1.5rem;font-size:13px;">
         No se encontraron imágenes para los filtros actuales.
@@ -1494,12 +1498,13 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
     const { storeCol, dateCol } = detectStoreAndDateCols();
     const images = filteredData
       .map(r => ({
-        raw:   String(r[colIdx]   || '').trim(),
-        label: (r[storeCol] !== '' && r[storeCol] !== null && r[storeCol] !== undefined) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
-        date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
+        raw:       String(r[colIdx] || '').trim(),
+        label:     (r[storeCol] !== '' && r[storeCol] !== null && r[storeCol] !== undefined) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
+        date:      dateCol >= 0 ? String(r[dateCol] || '').trim() : '',
+        filterVal: hasFilter ? String(r[filterColIdx] || '').trim() : ''
       }))
       .filter(item => item.raw.length > 0)
-      .map(({ raw, label, date }) => {
+      .map(({ raw, label, date, filterVal }) => {
         let url, fallbacks;
         if (isAppSheetPath(raw)) {
           url = appSheetImgUrl(raw); fallbacks = [];
@@ -1513,21 +1518,68 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
             ];
           } else { url = raw; fallbacks = []; }
         }
-        return { url, fallbacks, label, date };
+        return { url, fallbacks, label, date, filterVal };
       });
 
-    const track  = document.getElementById(trackId);
-    const noImg  = document.getElementById(noImgId);
-    const countEl = document.getElementById(countId);
+    // Store globally for re-filtering
+    window._genSecImages = window._genSecImages || {};
+    const storeKey = chartsId + '__' + colIdx;
+    window._genSecImages[storeKey] = images;
 
-    if (!images.length) {
-      noImg.style.display = ''; countEl.textContent = '';
-    } else {
-      noImg.style.display = 'none';
-      countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-      track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
-        buildCarouselItem(url, fallbacks, label, date, idx)
-      ).join('');
+    // Render function for this carousel (captured in closure)
+    window._renderGenSecTrack = window._renderGenSecTrack || {};
+    window._renderGenSecTrack[storeKey] = function(imgs) {
+      const track   = document.getElementById(trackId);
+      const noImg   = document.getElementById(noImgId);
+      const countEl = document.getElementById(countId);
+      if (!track) return;
+      if (!imgs.length) {
+        noImg.style.display = ''; countEl.textContent = '';
+        track.innerHTML = '';
+      } else {
+        noImg.style.display = 'none';
+        countEl.textContent = imgs.length + ' foto' + (imgs.length !== 1 ? 's' : '');
+        track.innerHTML = imgs.map(({ url, fallbacks, label, date }, idx) =>
+          buildCarouselItem(url, fallbacks, label, date, idx)
+        ).join('');
+      }
+    };
+
+    // Initial render
+    window._renderGenSecTrack[storeKey](images);
+
+    // Build filter chips if needed
+    if (hasFilter) {
+      const filterColLabel = colHeaders[filterColIdx] || ('Col. ' + idxToLetter(filterColIdx));
+      const chipsDiv = document.getElementById(chipsId);
+      if (chipsDiv) {
+        const uniqueVals = [...new Set(images.map(img => img.filterVal).filter(v => v))].sort();
+        const allChip = document.createElement('button');
+        allChip.className = 'filter-chip active';
+        allChip.textContent = 'Todos';
+        allChip.setAttribute('data-key', storeKey);
+        allChip.onclick = function() {
+          chipsDiv.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+          this.classList.add('active');
+          window._renderGenSecTrack[storeKey](window._genSecImages[storeKey]);
+        };
+        chipsDiv.appendChild(allChip);
+
+        uniqueVals.forEach(val => {
+          const safeV = val.replace(/'/g, "\\'");
+          const chip = document.createElement('button');
+          chip.className = 'filter-chip';
+          chip.textContent = val;
+          chip.setAttribute('data-key', storeKey);
+          chip.onclick = function() {
+            chipsDiv.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            const filtered = (window._genSecImages[storeKey] || []).filter(img => img.filterVal === val);
+            window._renderGenSecTrack[storeKey](filtered);
+          };
+          chipsDiv.appendChild(chip);
+        });
+      }
     }
   });
 }
@@ -2131,7 +2183,8 @@ function renderEquipoGranja() {
     carouselsId:   'eqGranjaCarousels',
     colStart:      49,   // AX
     colEnd:        60,   // BI
-    imgColsForced: [54, 59] // BC y BH
+    imgColsForced: [54, 59], // BC y BH
+    filterMap:     { 54: 53 } // BC filtrado por BB
   });
 }
 
