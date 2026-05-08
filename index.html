@@ -654,8 +654,6 @@
     <button class="tab-btn" onclick="switchTab('equipocongelado',this)">Equipo Congelado</button>
     <button class="tab-btn" onclick="switchTab('mueblesDP',this)">Muebles DP</button>
     <button class="tab-btn" onclick="switchTab('equipogranja',this)">Equipo la Granja</button>
-    <button class="tab-btn" onclick="switchTab('imagenes',this)">Carrusel de Imágenes</button>
-    <button class="tab-btn" onclick="switchTab('pendientes',this)">Tiendas Pendientes</button>
     <button class="tab-btn" onclick="switchTab('detalle',this)">Detalle por Sección</button>
   </div>
 
@@ -822,28 +820,6 @@
       <div id="eqGranjaCharts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
     </div>
     <div id="eqGranjaCarousels"></div>
-  </div>
-
-  <!-- TAB: IMÁGENES -->
-  <div class="panel" id="panel-imagenes">
-    <div class="section-chips" id="seccionChips">
-      <div class="section-chip active" data-sec="all" onclick="filterCarrusel('all',this)">Todas las secciones</div>
-    </div>
-    <div id="carruselSections"></div>
-  </div>
-
-  <!-- TAB: PENDIENTES -->
-  <div class="panel" id="panel-pendientes">
-    <div class="two-col">
-      <div class="card">
-        <div class="card-title">Tiendas sin visitar</div>
-        <div class="pending-scroll" id="pendingList"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Cobertura por Provincia</div>
-        <div id="provinciaProgress"></div>
-      </div>
-    </div>
   </div>
 
   <!-- TAB: DETALLE -->
@@ -1039,8 +1015,6 @@ function applyFilters() {
   renderEquipoCongelado();
   renderMueblesDP();
   renderEquipoGranja();
-  renderCarrusel();
-  renderPendientes();
   renderCharts();
   renderSeccionDetail();
 }
