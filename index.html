@@ -1294,6 +1294,49 @@ function idxToLetter(n) {
 
 const CHART_COLORS = ['#e8b84b','#4fc3a1','#e8604c','#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6','#38bdf8'];
 
+// Detecta columna de nombre de tienda y columna de fecha en los headers
+function detectStoreAndDateCols() {
+  const storeRx = /tienda|nombre|local|establecimiento|negocio|comercio|panaderi/i;
+  const dateRx  = /fecha|date|timestamp|hora/i;
+  let storeCol = -1, dateCol = -1;
+  colHeaders.forEach((h, i) => {
+    const header = String(h || '').trim();
+    if (storeCol === -1 && storeRx.test(header)) storeCol = i;
+    if (dateCol  === -1 && dateRx.test(header))  dateCol  = i;
+  });
+  if (storeCol === -1) storeCol = 1; // fallback columna B
+  return { storeCol, dateCol };
+}
+
+// Formatea fecha: "2024-05-08" → "08/05/2024", preserva otros strings
+function formatDate(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  // Formato ISO date: YYYY-MM-DD (con o sin hora)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  // Date JS object string
+  const d = new Date(s);
+  if (!isNaN(d.getTime()) && s.length > 5) {
+    return d.toLocaleDateString('es-CR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }
+  return s;
+}
+
+// HTML de un item de carrusel (centralizado para todos los carruseles)
+function buildCarouselItem(url, fallbacks, storeName, date, idx) {
+  const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
+  const dateStr = formatDate(date);
+  return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
+    <img src="${url}" alt="${storeName}" loading="lazy" data-fallbacks='${fbJson}'
+      onerror="(function(img){var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');var next=fbs.shift();if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}else{img.parentElement.style.display='none';}})(this)">
+    <div class="ci-info">
+      <div class="ci-label" style="font-size:10px;color:var(--text2);">${dateStr || ('Foto ' + (idx + 1))}</div>
+      <div class="ci-name" style="font-size:12px;font-weight:500;color:var(--text);">${storeName || '—'}</div>
+    </div>
+  </div>`;
+}
+
 /* ─── FUNCIÓN GENÉRICA PARA SECCIONES DE ANÁLISIS + CARRUSELES ─────────────
    chartsId      : id del contenedor de gráficos
    carouselsId   : id del contenedor de carruseles
@@ -1438,10 +1481,15 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
       </div>`;
     carouselsContainer.appendChild(section);
 
+    const { storeCol, dateCol } = detectStoreAndDateCols();
     const images = filteredData
-      .map(r => ({ raw: String(r[colIdx] || '').trim(), label: String(r[1] || r[0] || '').trim() }))
+      .map(r => ({
+        raw:   String(r[colIdx]   || '').trim(),
+        label: String(r[storeCol] || r[0] || '').trim(),
+        date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
+      }))
       .filter(item => item.raw.length > 0)
-      .map(({ raw, label }) => {
+      .map(({ raw, label, date }) => {
         let url, fallbacks;
         if (isAppSheetPath(raw)) {
           url = appSheetImgUrl(raw); fallbacks = [];
@@ -1455,7 +1503,7 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
             ];
           } else { url = raw; fallbacks = []; }
         }
-        return { url, fallbacks, label };
+        return { url, fallbacks, label, date };
       });
 
     const track  = document.getElementById(trackId);
@@ -1467,17 +1515,9 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
     } else {
       noImg.style.display = 'none';
       countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-      track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
-        const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
-        return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
-          <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
-            onerror="(function(img){var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');var next=fbs.shift();if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}else{img.parentElement.style.display='none';}})(this)">
-          <div class="ci-info">
-            <div class="ci-label">Foto ${idx + 1}</div>
-            <div class="ci-name">${label || '—'}</div>
-          </div>
-        </div>`;
-      }).join('');
+      track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
+        buildCarouselItem(url, fallbacks, label, date, idx)
+      ).join('');
     }
   });
 }
@@ -1594,19 +1634,19 @@ function renderComunicacionExterna() {
   const noImg = document.getElementById('comExtNoImg');
   const countEl = document.getElementById('comExtImgCount');
 
+  const { storeCol, dateCol } = detectStoreAndDateCols();
   const rawColM = filteredData
     .map(r => ({
-      raw: String(r[COL_M] || '').trim(),
-      label: String(r[1] || r[0] || '').trim()
+      raw:   String(r[COL_M]    || '').trim(),
+      label: String(r[storeCol] || r[0] || '').trim(),
+      date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
     }))
     .filter(item => item.raw.length > 0);
 
-  const images = rawColM.map(({ raw, label }) => {
+  const images = rawColM.map(({ raw, label, date }) => {
     let url, fallbacks;
     if (isAppSheetPath(raw)) {
-      // Ruta relativa de AppSheet → construir URL con App ID
-      url = appSheetImgUrl(raw);
-      fallbacks = [];
+      url = appSheetImgUrl(raw); fallbacks = [];
     } else {
       const id = extractDriveId(raw);
       if (id) {
@@ -1615,12 +1655,9 @@ function renderComunicacionExterna() {
           `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
           `https://drive.google.com/uc?export=view&id=${id}`,
         ];
-      } else {
-        url = raw;
-        fallbacks = [];
-      }
+      } else { url = raw; fallbacks = []; }
     }
-    return { url, fallbacks, label, raw };
+    return { url, fallbacks, label, date };
   });
 
   if (!images.length) {
@@ -1632,22 +1669,9 @@ function renderComunicacionExterna() {
   } else {
     noImg.style.display = 'none';
     countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-    track.innerHTML = images.map(({ url, fallbacks, label, raw }, idx) => {
-      const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
-      return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
-        <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
-          onerror="(function(img){
-            var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');
-            var next=fbs.shift();
-            if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}
-            else{img.parentElement.style.display='none';}
-          })(this)">
-        <div class="ci-info">
-          <div class="ci-label">Foto ${idx + 1}</div>
-          <div class="ci-name">${label || '—'}</div>
-        </div>
-      </div>`;
-    }).join('');
+    track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
+      buildCarouselItem(url, fallbacks, label, date, idx)
+    ).join('');
   }
 }
 
@@ -1761,18 +1785,19 @@ function renderEquipoBebidas() {
   const countEl = document.getElementById('eqBebImgCount');
   if (!track) return;
 
+  const { storeCol, dateCol } = detectStoreAndDateCols();
   const rawColT = filteredData
     .map(r => ({
-      raw: String(r[COL_T] || '').trim(),
-      label: String(r[1] || r[0] || '').trim()
+      raw:   String(r[COL_T]    || '').trim(),
+      label: String(r[storeCol] || r[0] || '').trim(),
+      date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
     }))
     .filter(item => item.raw.length > 0);
 
-  const images = rawColT.map(({ raw, label }) => {
+  const images = rawColT.map(({ raw, label, date }) => {
     let url, fallbacks;
     if (isAppSheetPath(raw)) {
-      url = appSheetImgUrl(raw);
-      fallbacks = [];
+      url = appSheetImgUrl(raw); fallbacks = [];
     } else {
       const id = extractDriveId(raw);
       if (id) {
@@ -1781,12 +1806,9 @@ function renderEquipoBebidas() {
           `https://drive.google.com/thumbnail?id=${id}&sz=w400`,
           `https://drive.google.com/uc?export=view&id=${id}`,
         ];
-      } else {
-        url = raw;
-        fallbacks = [];
-      }
+      } else { url = raw; fallbacks = []; }
     }
-    return { url, fallbacks, label, raw };
+    return { url, fallbacks, label, date };
   });
 
   if (!images.length) {
@@ -1796,22 +1818,9 @@ function renderEquipoBebidas() {
   } else {
     noImg.style.display = 'none';
     countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-    track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
-      const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
-      return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
-        <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
-          onerror="(function(img){
-            var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');
-            var next=fbs.shift();
-            if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}
-            else{img.parentElement.style.display='none';}
-          })(this)">
-        <div class="ci-info">
-          <div class="ci-label">Foto ${idx + 1}</div>
-          <div class="ci-name">${label || '—'}</div>
-        </div>
-      </div>`;
-    }).join('');
+    track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
+      buildCarouselItem(url, fallbacks, label, date, idx)
+    ).join('');
   }
 }
 
@@ -1963,18 +1972,19 @@ function renderEquipoCongelado() {
     carouselsContainer.appendChild(section);
 
     // Cargar imágenes en este carrusel
+    const { storeCol, dateCol } = detectStoreAndDateCols();
     const rawItems = filteredData
       .map(r => ({
-        raw: String(r[colIdx] || '').trim(),
-        label: String(r[1] || r[0] || '').trim()
+        raw:   String(r[colIdx]   || '').trim(),
+        label: String(r[storeCol] || r[0] || '').trim(),
+        date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
       }))
       .filter(item => item.raw.length > 0);
 
-    const images = rawItems.map(({ raw, label }) => {
+    const images = rawItems.map(({ raw, label, date }) => {
       let url, fallbacks;
       if (isAppSheetPath(raw)) {
-        url = appSheetImgUrl(raw);
-        fallbacks = [];
+        url = appSheetImgUrl(raw); fallbacks = [];
       } else {
         const id = extractDriveId(raw);
         if (id) {
@@ -1985,7 +1995,7 @@ function renderEquipoCongelado() {
           ];
         } else { url = raw; fallbacks = []; }
       }
-      return { url, fallbacks, label };
+      return { url, fallbacks, label, date };
     });
 
     const track = document.getElementById(trackId);
@@ -1998,22 +2008,9 @@ function renderEquipoCongelado() {
     } else {
       noImg.style.display = 'none';
       countEl.textContent = images.length + ' foto' + (images.length !== 1 ? 's' : '');
-      track.innerHTML = images.map(({ url, fallbacks, label }, idx) => {
-        const fbJson = JSON.stringify(fallbacks).replace(/'/g, '&#39;');
-        return `<div class="carousel-item" onclick="openLightbox(this.querySelector('img').src)">
-          <img src="${url}" alt="${label}" loading="lazy" data-fallbacks='${fbJson}'
-            onerror="(function(img){
-              var fbs=JSON.parse(img.getAttribute('data-fallbacks')||'[]');
-              var next=fbs.shift();
-              if(next){img.setAttribute('data-fallbacks',JSON.stringify(fbs));img.src=next;}
-              else{img.parentElement.style.display='none';}
-            })(this)">
-          <div class="ci-info">
-            <div class="ci-label">Foto ${idx + 1}</div>
-            <div class="ci-name">${label || '—'}</div>
-          </div>
-        </div>`;
-      }).join('');
+      track.innerHTML = images.map(({ url, fallbacks, label, date }, idx) =>
+        buildCarouselItem(url, fallbacks, label, date, idx)
+      ).join('');
     }
   });
 }
