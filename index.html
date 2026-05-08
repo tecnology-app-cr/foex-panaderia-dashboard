@@ -1294,16 +1294,18 @@ function idxToLetter(n) {
 
 const CHART_COLORS = ['#e8b84b','#4fc3a1','#e8604c','#60a5fa','#a78bfa','#fb923c','#34d399','#818cf8','#f472b6','#38bdf8'];
 
-// Nombre de tienda: columna D (índice 3, confirmado por el usuario)
-// Fecha: detectada automáticamente por header
+// Detecta columna TIENDA por nombre exacto y FECHA por keyword
 function detectStoreAndDateCols() {
-  const dateRx = /fecha|date|timestamp|hora/i;
-  let dateCol = -1;
+  const dateRx  = /fecha|date|timestamp|hora/i;
+  let storeCol = -1, dateCol = -1;
   colHeaders.forEach((h, i) => {
     const header = String(h || '').trim();
-    if (dateCol === -1 && dateRx.test(header)) dateCol = i;
+    if (storeCol === -1 && /^tienda$/i.test(header))          storeCol = i;
+    if (dateCol  === -1 && dateRx.test(header))               dateCol  = i;
   });
-  return { storeCol: 3, dateCol }; // columna D = índice 3
+  if (storeCol === -1) storeCol = 3; // fallback índice 3
+  console.log('[storeCol]', storeCol, colHeaders[storeCol], '| [dateCol]', dateCol, colHeaders[dateCol]);
+  return { storeCol, dateCol };
 }
 
 // Formatea fecha a DD/MM/YYYY — maneja formato GViz, ISO y Date JS
@@ -1491,7 +1493,7 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
     const images = filteredData
       .map(r => ({
         raw:   String(r[colIdx]   || '').trim(),
-        label: String(r[storeCol] || r[0] || '').trim(),
+        label: (r[storeCol] !== '' && r[storeCol] !== null && r[storeCol] !== undefined) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
         date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
       }))
       .filter(item => item.raw.length > 0)
@@ -1982,7 +1984,7 @@ function renderEquipoCongelado() {
     const rawItems = filteredData
       .map(r => ({
         raw:   String(r[colIdx]   || '').trim(),
-        label: String(r[storeCol] || r[0] || '').trim(),
+        label: (r[storeCol] !== '' && r[storeCol] !== null && r[storeCol] !== undefined) ? String(r[storeCol]).trim() : String(r[0] || '').trim(),
         date:  dateCol >= 0 ? String(r[dateCol] || '').trim() : ''
       }))
       .filter(item => item.raw.length > 0);
