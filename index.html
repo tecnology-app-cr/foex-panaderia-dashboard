@@ -1347,6 +1347,103 @@ function buildCarouselItem(url, fallbacks, storeName, date, idx) {
   </div>`;
 }
 
+/* ─── HELPER: renderiza una tarjeta de gráfico (detecta selección múltiple) ──
+   container : elemento DOM donde añadir la tarjeta
+   colIdx    : índice 0-based de la columna
+   prefix    : prefijo único para el id del canvas (ej. 'eqbeb_', 'cext_')
+────────────────────────────────────────────────────────────────────────── */
+function _renderChartCard(container, colIdx, prefix) {
+  const header  = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
+  const rawVals = filteredData.map(r => String(r[colIdx] || '').trim()).filter(v => v !== '');
+  if (!rawVals.length) return;
+
+  const commaCount = rawVals.filter(v => v.includes(',')).length;
+  const isMulti    = commaCount / rawVals.length > 0.25;
+  const totalRows  = rawVals.length;
+  const expanded   = isMulti
+    ? rawVals.flatMap(v => v.split(',').map(s => s.trim()).filter(s => s))
+    : rawVals;
+
+  const freq = {};
+  expanded.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+  const entries       = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+  const top           = entries.slice(0, isMulti ? 10 : 8);
+  const pctBase       = isMulti ? totalRows : expanded.length;
+  const totalMentions = expanded.length;
+  const useDoughnut   = !isMulti && top.length <= 5;
+  const canvasId      = prefix + colIdx;
+  const topVal        = top[0] ? top[0][0] : '—';
+  const topPct        = top[0] ? Math.round(top[0][1] / pctBase * 100) : 0;
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-title" style="margin-bottom:6px;">
+      ${header}
+      ${isMulti ? '<span class="tag" style="background:#dbeafe;color:#1e40af;margin-left:6px;">Selección múltiple</span>' : ''}
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+        <div style="color:var(--text2);">Respuestas</div>
+        <div style="font-weight:700;font-size:16px;">${totalRows.toLocaleString()}</div>
+      </div>
+      ${isMulti ? `<div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+        <div style="color:var(--text2);">Total menciones</div>
+        <div style="font-weight:700;font-size:16px;">${totalMentions.toLocaleString()}</div>
+      </div>` : ''}
+      <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
+        <div style="color:var(--text2);">Opciones únicas</div>
+        <div style="font-weight:700;font-size:16px;">${entries.length}</div>
+      </div>
+      <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:200px;">
+        <div style="color:var(--text2);">Más seleccionada</div>
+        <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
+      </div>
+    </div>
+    <div style="position:relative;height:${useDoughnut ? 200 : Math.max(180, top.length * 28)}px;">
+      <canvas id="${canvasId}"></canvas>
+    </div>
+    ${isMulti ? `<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">* % calculado sobre ${totalRows} respuestas</div>` : ''}`;
+  container.appendChild(card);
+
+  setTimeout(() => {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    destroyChart(canvasId);
+    charts[canvasId] = new Chart(ctx, {
+      type: useDoughnut ? 'doughnut' : 'bar',
+      data: {
+        labels: top.map(([k]) => k.length > 32 ? k.slice(0, 30) + '…' : k),
+        datasets: [{
+          data: top.map(([, v]) => v),
+          backgroundColor: CHART_COLORS,
+          borderWidth: useDoughnut ? 2 : 0,
+          borderColor: '#fff',
+          borderRadius: useDoughnut ? 0 : 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        indexAxis: useDoughnut ? undefined : 'y',
+        plugins: {
+          legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+          tooltip: { callbacks: { label: c => {
+            const cnt = useDoughnut ? c.parsed : c.parsed.x;
+            const pct = Math.round(cnt / pctBase * 100);
+            return isMulti
+              ? ` ${cnt.toLocaleString()} menciones (${pct}% de respuestas)`
+              : ` ${cnt.toLocaleString()} respuestas (${pct}%)`;
+          }}}
+        },
+        scales: useDoughnut ? {} : {
+          x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { font: { size: 10 }, maxRotation: 0 } }
+        }
+      }
+    });
+  }, 0);
+}
+
 /* ─── FUNCIÓN GENÉRICA PARA SECCIONES DE ANÁLISIS + CARRUSELES ─────────────
    chartsId      : id del contenedor de gráficos
    carouselsId   : id del contenedor de carruseles
@@ -1384,103 +1481,7 @@ function renderAnalysisSection({ chartsId, carouselsId, colStart, colEnd, imgCol
   if (!chartCols.length) {
     chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos con los filtros actuales.</div>';
   } else {
-    chartCols.forEach(i => {
-      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
-      const rawVals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
-      if (!rawVals.length) return;
-
-      // ── Detección selección múltiple (>25% de celdas contienen coma) ──
-      const commaCount = rawVals.filter(v => v.includes(',')).length;
-      const isMulti    = commaCount / rawVals.length > 0.25;
-
-      // Expandir opciones si es selección múltiple
-      const totalRows = rawVals.length;
-      const expanded  = isMulti
-        ? rawVals.flatMap(v => v.split(',').map(s => s.trim()).filter(s => s))
-        : rawVals;
-
-      const freq = {};
-      expanded.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
-      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
-      // Limitar a top 10 para selección múltiple (más opciones), 8 para normal
-      const top     = entries.slice(0, isMulti ? 10 : 8);
-      // Para % en multi: base = total de filas (% de personas que marcaron esa opción)
-      const pctBase = isMulti ? totalRows : expanded.length;
-      const totalMentions = expanded.length;
-
-      const useDoughnut = !isMulti && top.length <= 5;
-      const canvasId    = 'gensec_' + chartsId + '_' + i;
-      const topVal = top[0] ? top[0][0] : '—';
-      const topPct = top[0] ? Math.round(top[0][1] / pctBase * 100) : 0;
-
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="card-title" style="margin-bottom:6px;">
-          ${header}
-          ${isMulti ? '<span class="tag" style="background:#dbeafe;color:#1e40af;margin-left:6px;">Selección múltiple</span>' : ''}
-        </div>
-        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Respuestas</div>
-            <div style="font-weight:700;font-size:16px;">${totalRows.toLocaleString()}</div>
-          </div>
-          ${isMulti ? `<div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Total menciones</div>
-            <div style="font-weight:700;font-size:16px;">${totalMentions.toLocaleString()}</div>
-          </div>` : ''}
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Opciones únicas</div>
-            <div style="font-weight:700;font-size:16px;">${entries.length}</div>
-          </div>
-          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:200px;">
-            <div style="color:var(--text2);">Más seleccionada</div>
-            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
-          </div>
-        </div>
-        <div style="position:relative;height:${useDoughnut ? 200 : Math.max(180, top.length * 28)}px;">
-          <canvas id="${canvasId}"></canvas>
-        </div>
-        ${isMulti ? `<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">* % calculado sobre ${totalRows} respuestas (una persona puede elegir varias opciones)</div>` : ''}`;
-      chartsContainer.appendChild(card);
-
-      setTimeout(() => {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        destroyChart(canvasId);
-        charts[canvasId] = new Chart(ctx, {
-          type: useDoughnut ? 'doughnut' : 'bar',
-          data: {
-            labels: top.map(([k]) => k.length > 32 ? k.slice(0, 30) + '…' : k),
-            datasets: [{
-              data: top.map(([, v]) => v),
-              backgroundColor: CHART_COLORS,
-              borderWidth: useDoughnut ? 2 : 0,
-              borderColor: '#fff',
-              borderRadius: useDoughnut ? 0 : 4,
-            }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            indexAxis: useDoughnut ? undefined : 'y',
-            plugins: {
-              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
-              tooltip: { callbacks: { label: c => {
-                const cnt = useDoughnut ? c.parsed : c.parsed.x;
-                const pct = Math.round(cnt / pctBase * 100);
-                return isMulti
-                  ? ` ${cnt.toLocaleString()} menciones (${pct}% de respuestas)`
-                  : ` ${cnt.toLocaleString()} respuestas (${pct}%)`;
-              }}}
-            },
-            scales: useDoughnut ? {} : {
-              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-              y: { ticks: { font: { size: 10 }, maxRotation: 0 } }
-            }
-          }
-        });
-      }, 0);
-    });
+    chartCols.forEach(i => _renderChartCard(chartsContainer, i, 'gensec_' + chartsId + '_'));
   }
 
   // ── CARRUSELES (uno por cada columna imagen) ───────────────────────────
@@ -1631,88 +1632,7 @@ function renderComunicacionExterna() {
   if (chartCols.length === 0) {
     chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos en H–L con los filtros actuales.</div>';
   } else {
-    chartCols.forEach(i => {
-      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
-      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
-      if (!vals.length) return;
-
-      const freq = {};
-      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
-      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
-      const top = entries.slice(0, 8);
-      const total = vals.length;
-      const useDoughnut = top.length <= 5;
-
-      const card = document.createElement('div');
-      card.className = 'card';
-      const canvasId = 'cext_' + i;
-
-      // Summary stats row
-      const uniqueCount = entries.length;
-      const topVal = top[0] ? top[0][0] : '—';
-      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
-
-      card.innerHTML = `
-        <div class="card-title" style="margin-bottom:6px;">${header}</div>
-        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Respuestas</div>
-            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
-          </div>
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Opciones únicas</div>
-            <div style="font-weight:700;font-size:16px;">${uniqueCount}</div>
-          </div>
-          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
-            <div style="color:var(--text2);">Más frecuente</div>
-            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
-          </div>
-        </div>
-        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
-          <canvas id="${canvasId}"></canvas>
-        </div>`;
-      chartsContainer.appendChild(card);
-
-      setTimeout(() => {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        destroyChart(canvasId);
-        charts[canvasId] = new Chart(ctx, {
-          type: useDoughnut ? 'doughnut' : 'bar',
-          data: {
-            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
-            datasets: [{
-              data: top.map(([, v]) => v),
-              backgroundColor: CHART_COLORS,
-              borderWidth: useDoughnut ? 2 : 0,
-              borderColor: '#fff',
-              borderRadius: useDoughnut ? 0 : 4,
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: useDoughnut ? undefined : 'y',
-            plugins: {
-              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
-              tooltip: {
-                callbacks: {
-                  label: ctx => {
-                    const pct = Math.round(ctx.parsed / total * 100);
-                    const val = useDoughnut ? ctx.parsed : ctx.parsed.x;
-                    return ` ${val.toLocaleString()} respuestas (${pct}%)`;
-                  }
-                }
-              }
-            },
-            scales: useDoughnut ? {} : {
-              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-              y: { ticks: { font: { size: 10 } } }
-            }
-          }
-        });
-      }, 0);
-    });
+    chartCols.forEach(i => _renderChartCard(chartsContainer, i, 'cext_'));
   }
 
   // --- Carrusel columna M (índice 12) ---
@@ -1784,85 +1704,7 @@ function renderEquipoBebidas() {
   if (!chartCols.length) {
     chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos en O–X con los filtros actuales.</div>';
   } else {
-    chartCols.forEach(i => {
-      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
-      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
-      if (!vals.length) return;
-
-      const freq = {};
-      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
-      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
-      const top = entries.slice(0, 8);
-      const total = vals.length;
-      const useDoughnut = top.length <= 5;
-
-      const card = document.createElement('div');
-      card.className = 'card';
-      const canvasId = 'eqbeb_' + i;
-      const topVal = top[0] ? top[0][0] : '—';
-      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
-
-      card.innerHTML = `
-        <div class="card-title" style="margin-bottom:6px;">${header}</div>
-        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Respuestas</div>
-            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
-          </div>
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Opciones únicas</div>
-            <div style="font-weight:700;font-size:16px;">${entries.length}</div>
-          </div>
-          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
-            <div style="color:var(--text2);">Más frecuente</div>
-            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
-          </div>
-        </div>
-        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
-          <canvas id="${canvasId}"></canvas>
-        </div>`;
-      chartsContainer.appendChild(card);
-
-      setTimeout(() => {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        destroyChart(canvasId);
-        charts[canvasId] = new Chart(ctx, {
-          type: useDoughnut ? 'doughnut' : 'bar',
-          data: {
-            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
-            datasets: [{
-              data: top.map(([, v]) => v),
-              backgroundColor: CHART_COLORS,
-              borderWidth: useDoughnut ? 2 : 0,
-              borderColor: '#fff',
-              borderRadius: useDoughnut ? 0 : 4,
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: useDoughnut ? undefined : 'y',
-            plugins: {
-              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
-              tooltip: {
-                callbacks: {
-                  label: ctx => {
-                    const pct = Math.round(ctx.parsed / total * 100);
-                    const val = useDoughnut ? ctx.parsed : ctx.parsed.x;
-                    return ` ${val.toLocaleString()} respuestas (${pct}%)`;
-                  }
-                }
-              }
-            },
-            scales: useDoughnut ? {} : {
-              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-              y: { ticks: { font: { size: 10 } } }
-            }
-          }
-        });
-      }, 0);
-    });
+    chartCols.forEach(i => _renderChartCard(chartsContainer, i, 'eqbeb_'));
   }
 
   // --- Carrusel columna T (índice 19) filtrado por columna S (índice 18) ---
@@ -1981,84 +1823,7 @@ function renderEquipoCongelado() {
   if (!chartCols.length) {
     chartsContainer.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:2rem;">No se encontraron columnas de datos en Z–AL.</div>';
   } else {
-    chartCols.forEach(i => {
-      const header = colHeaders[i] || ('Col. ' + idxToLetter(i));
-      const vals = filteredData.map(r => String(r[i] || '').trim()).filter(v => v !== '');
-      if (!vals.length) return;
-
-      const freq = {};
-      vals.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
-      const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
-      const top = entries.slice(0, 8);
-      const total = vals.length;
-      const useDoughnut = top.length <= 5;
-      const canvasId = 'eqcon_' + i;
-      const topVal = top[0] ? top[0][0] : '—';
-      const topPct = top[0] ? Math.round(top[0][1] / total * 100) : 0;
-
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="card-title" style="margin-bottom:6px;">${header}</div>
-        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Respuestas</div>
-            <div style="font-weight:700;font-size:16px;">${total.toLocaleString()}</div>
-          </div>
-          <div style="background:#f3f4f6;border-radius:8px;padding:6px 12px;font-size:11px;">
-            <div style="color:var(--text2);">Opciones únicas</div>
-            <div style="font-weight:700;font-size:16px;">${entries.length}</div>
-          </div>
-          <div style="background:#fef3c7;border-radius:8px;padding:6px 12px;font-size:11px;max-width:180px;">
-            <div style="color:var(--text2);">Más frecuente</div>
-            <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${topVal} <span style="color:var(--text2);font-weight:400;">(${topPct}%)</span></div>
-          </div>
-        </div>
-        <div style="position:relative;height:${useDoughnut ? 200 : 180}px;">
-          <canvas id="${canvasId}"></canvas>
-        </div>`;
-      chartsContainer.appendChild(card);
-
-      setTimeout(() => {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        destroyChart(canvasId);
-        charts[canvasId] = new Chart(ctx, {
-          type: useDoughnut ? 'doughnut' : 'bar',
-          data: {
-            labels: top.map(([k]) => k.length > 28 ? k.slice(0, 26) + '…' : k),
-            datasets: [{
-              data: top.map(([, v]) => v),
-              backgroundColor: CHART_COLORS,
-              borderWidth: useDoughnut ? 2 : 0,
-              borderColor: '#fff',
-              borderRadius: useDoughnut ? 0 : 4,
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: useDoughnut ? undefined : 'y',
-            plugins: {
-              legend: { display: useDoughnut, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
-              tooltip: {
-                callbacks: {
-                  label: c => {
-                    const pct = Math.round(c.parsed / total * 100);
-                    const val = useDoughnut ? c.parsed : c.parsed.x;
-                    return ` ${val.toLocaleString()} respuestas (${pct}%)`;
-                  }
-                }
-              }
-            },
-            scales: useDoughnut ? {} : {
-              x: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-              y: { ticks: { font: { size: 10 } } }
-            }
-          }
-        });
-      }, 0);
-    });
+    chartCols.forEach(i => _renderChartCard(chartsContainer, i, 'eqcon_'));
   }
 
   // --- CARRUSELES SEPARADOS por cada columna de imagen detectada ---
