@@ -840,6 +840,11 @@ const SHEET_ENCUESTAS = 'FOEX_PANADERIA';
 const SHEET_TIENDAS = 'PANADERIAS_FOEX';
 const APPSHEET_APP_ID = 'd47cc064-5607-4741-a189-71066ee19fb0';
 
+// Sobrenombres de columnas por índice 0-based (se muestran en gráficos y carruseles)
+const COL_DISPLAY_NAMES = {
+  15: 'Equipo Frio (Cantidad Equipos por PDV)',  // Col. P
+};
+
 let allEncuestas = [];
 let allTiendas = [];
 let filteredData = [];
@@ -1353,7 +1358,7 @@ function buildCarouselItem(url, fallbacks, storeName, date, idx) {
    prefix    : prefijo único para el id del canvas (ej. 'eqbeb_', 'cext_')
 ────────────────────────────────────────────────────────────────────────── */
 function _renderChartCard(container, colIdx, prefix) {
-  const header  = colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
+  const header  = COL_DISPLAY_NAMES[colIdx] || colHeaders[colIdx] || ('Col. ' + idxToLetter(colIdx));
   const rawVals = filteredData.map(r => String(r[colIdx] || '').trim()).filter(v => v !== '');
   if (!rawVals.length) return;
 
